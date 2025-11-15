@@ -1,0 +1,142 @@
+@import url('https://fonts.bunny.net/css?family=inter:300,400,500,600,700,800,900');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.slide-enter-from {
+  transform: translateX(100%);
+}
+
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.slide-enter-to,
+.slide-leave-from {
+  transform: translateX(0);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.4s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@layer base {
+  .mainColor {
+    @apply bg-[#05716c];
+  }
+
+  .dashBgNav {
+    @apply flex items-center gap-3 text-white py-2.5 px-3 rounded-xl transition-all duration-300 relative;
+  }
+
+  .dashBgNav svg {
+    @apply w-6 h-6 flex-shrink-0 text-white transition-all duration-300;
+  }
+
+  .sidebar-text {
+    @apply opacity-0 translate-x-[-10px] transition-all duration-300 overflow-hidden whitespace-nowrap text-white;
+  }
+
+  aside:hover .sidebar-text {
+    @apply opacity-100 translate-x-0;
+  }
+
+  aside {
+    @apply w-20 hover:w-64 transition-all duration-300;
+  }
+
+  .router-link-active {
+    @apply bg-gradient-to-r from-emerald-600 to-emerald-700;
+  }
+
+  .dashBgNav svg {
+    @apply transition-transform duration-200 ease-in-out;
+  }
+
+  /* 🟢 Active and hover states */
+  .dashBgNav.router-link-exact-active svg,
+  .dashBgNav:hover svg {
+    @apply text-emerald-300 scale-150;
+  }
+
+  .dashBgNav.router-link-exact-active .sidebar-text,
+  .dashBgNav:hover .sidebar-text {
+    @apply text-emerald-300;
+  }
+}
+
+.loader {
+  @apply p-[4px] aspect-square rounded-full bg-mainColor animate-spin-smooth;
+  --_m: conic-gradient(#0000 10%, #000), linear-gradient(#000 0 0) content-box;
+  -webkit-mask: var(--_m);
+  mask: var(--_m);
+  -webkit-mask-composite: source-out;
+  mask-composite: subtract;
+}
+
+/* Smooth rotation animation */
+@keyframes spin-smooth {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@layer utilities {
+  .animate-spin-smooth {
+    animation: spin-smooth 1s linear infinite;
+  }
+}
+
+.float-enter-active,
+.float-leave-active {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.float-enter-from,
+.float-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.9);
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+.animate-ping {
+  animation: ping 1.8s ease-out infinite;
+}
