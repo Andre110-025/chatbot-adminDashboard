@@ -75,6 +75,7 @@
   .dashBgNav:hover .sidebar-text {
     @apply text-emerald-300;
   }
+  
 }
 
 .loader {

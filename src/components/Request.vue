@@ -75,9 +75,13 @@ function openPopup() {
 </script>
 
 <template>
-  <div class="flex h-[570px] gap-4">
-    <nav class="w-[270px] bg-white shadow rounded-lg ml-1 overflow-y-auto p-5 flex flex-col">
-      <div v-if="loading" class="flex justify-center items-center h-60">
+  <div class="flex flex-col md:flex-row h-auto md:h-[570px] gap-4">
+
+    <!-- SIDEBAR -->
+    <nav
+      class="w-full md:w-[270px] bg-white shadow rounded-lg md:ml-1 overflow-y-auto p-5 flex flex-col"
+    >
+      <div v-if="loading" class="flex justify-center items-center h-40 md:h-60">
         <div
           class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
         ></div>
@@ -89,12 +93,12 @@ function openPopup() {
           <li
             v-for="(res, index) in allRequests"
             :key="index"
-            class="cursor-pointer px-3 py-2"
+            class="cursor-pointer"
             @click="selectRequest(res)"
           >
             <span
               :class="[
-                'border bg-gray-50 rounded-lg px-3 py-2 transition',
+                'block border bg-gray-50 rounded-lg px-3 py-2 transition',
                 selectedRequest === res
                   ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
                   : 'hover:bg-teal-50',
@@ -107,11 +111,18 @@ function openPopup() {
       </div>
     </nav>
 
-    <section class="flex-1 bg-white shadow rounded-lg p-6 overflow-y-auto">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <!-- DETAILS SECTION -->
+    <section
+      class="flex-1 bg-white shadow rounded-lg p-6 overflow-y-auto h-auto md:h-full"
+    >
+      <div
+        class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4"
+      >
         <h3 class="text-xl font-semibold text-gray-800">Information Details</h3>
-        <div class="flex flex-row gap-3">
+
+        <div class="flex flex-wrap gap-3">
           <Filter v-model:selected="selectedProductId" />
+
           <button
             @click="openPopup()"
             class="flex items-center gap-2 bg-mainColor text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition shadow"
@@ -122,6 +133,7 @@ function openPopup() {
         </div>
       </div>
 
+      <!-- EMPTY STATE -->
       <div
         v-if="!selectedRequest"
         class="text-gray-400 text-center py-20 animate-[fadeFloat_0.6s_ease-out]"
@@ -129,25 +141,28 @@ function openPopup() {
         Click a request on the left to see details
       </div>
 
+      <!-- DETAILS CARD -->
       <div
         v-else
-        class="border bg-gray-50 rounded-lg p-6 shadow-sm animate-fadeUp h-[450px] flex flex-col justify-between"
+        class="border bg-gray-50 rounded-lg p-6 shadow-sm animate-fadeUp h-auto md:h-[450px] flex flex-col justify-between"
       >
         <div v-if="loading" class="flex justify-center items-center h-60">
           <div
             class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
           ></div>
         </div>
-        <div v-else class="flex justify-between items-start gap-6">
+
+        <div v-else class="flex flex-col md:flex-row justify-between gap-6">
           <div class="flex-1">
             <h4 class="text-lg font-semibold text-gray-800 mb-2">Content</h4>
-            <p class="text-gray-700 whitespace-pre-line leading-relaxed text-[15px] max-w-[650px]">
+            <p
+              class="text-gray-700 whitespace-pre-line leading-relaxed text-[15px] max-w-full md:max-w-[650px]"
+            >
               {{ selectedRequest.content }}
             </p>
           </div>
 
-          <div class="flex flex-col items-end">
-            <!-- <h4 class="text-lg font-semibold text-gray-800 mb-2">Category</h4> -->
+          <div class="flex md:flex-col items-start md:items-end">
             <span
               class="text-sm font-medium bg-teal-100 text-teal-700 px-3 py-1 rounded-full border border-teal-200 shadow-sm"
             >
@@ -159,6 +174,7 @@ function openPopup() {
     </section>
   </div>
 </template>
+
 
 <style scoped>
 @keyframes fadeFloat {

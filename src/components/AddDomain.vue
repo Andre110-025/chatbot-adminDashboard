@@ -45,8 +45,13 @@ function openPopup() {
 </script>
 
 <template>
-  <div class="flex h-[570px] gap-4">
-    <nav class="w-[270px] bg-white shadow rounded-lg ml-1 overflow-y-auto p-5 flex flex-col">
+  <!-- MAIN WRAPPER -->
+  <div class="flex flex-col md:flex-row h-auto md:h-[570px] gap-4">
+
+    <!-- SIDEBAR -->
+    <nav
+      class="w-full md:w-[270px] bg-white shadow rounded-lg md:ml-1 overflow-y-auto p-5 flex flex-col"
+    >
       <div v-if="loading" class="flex justify-center items-center h-60">
         <div
           class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
@@ -55,6 +60,7 @@ function openPopup() {
 
       <div class="animate-fadeUp" v-else>
         <h3 class="text-lg font-semibold mb-4">All Website</h3>
+
         <ul class="space-y-2">
           <li
             v-for="(res, index) in allProducts"
@@ -64,10 +70,10 @@ function openPopup() {
           >
             <span
               :class="[
-                'border bg-gray-50 rounded-lg px-3 py-2 transition',
+                'border bg-gray-50 rounded-lg px-3 py-2 block transition',
                 selectedRequest === res
                   ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
-                  : 'hover:bg-teal-50',
+                  : 'hover:bg-teal-50'
               ]"
             >
               {{ res.business_name }}
@@ -77,9 +83,18 @@ function openPopup() {
       </div>
     </nav>
 
-    <section class="flex-1 bg-white shadow rounded-lg p-6 overflow-y-auto">
-      <div class="flex flex-row justify-between items-center mb-6">
-        <h3 class="text-xl font-semibold text-gray-800">Add new website</h3>
+    <!-- RIGHT CONTENT -->
+    <section
+      class="flex-1 bg-white shadow rounded-lg p-6 overflow-y-auto min-h-[400px]"
+    >
+      <!-- TITLE + BUTTON -->
+      <div
+        class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4"
+      >
+        <h3 class="text-xl font-semibold text-gray-800">
+          Add new website
+        </h3>
+
         <button
           @click="openPopup()"
           class="flex items-center gap-2 bg-mainColor text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition shadow"
@@ -88,6 +103,8 @@ function openPopup() {
           Add Domain
         </button>
       </div>
+
+      <!-- EMPTY STATE -->
       <div
         v-if="!selectedRequest"
         class="text-gray-400 text-center py-20 animate-[fadeFloat_0.6s_ease-out]"
@@ -95,20 +112,22 @@ function openPopup() {
         Click a request on the left to see details
       </div>
 
+      <!-- DETAILS CARD -->
       <div
         v-else
-        class="border bg-gray-50 rounded-lg p-6 shadow-sm animate-fadeUp h-[450px] flex flex-col justify-between"
+        class="border bg-gray-50 rounded-lg p-6 shadow-sm animate-fadeUp flex flex-col gap-6"
       >
-        <div class="flex justify-between items-start gap-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start gap-6">
           <div class="flex-1">
             <h4 class="text-lg font-semibold text-gray-800 mb-2">Website</h4>
-            <p class="text-gray-700 whitespace-pre-line leading-relaxed text-[15px] max-w-[650px]">
+            <p
+              class="text-gray-700 whitespace-pre-line leading-relaxed text-[15px]"
+            >
               {{ selectedRequest.website }}
             </p>
           </div>
 
-          <div class="flex flex-col items-end">
-            <!-- <h4 class="text-lg font-semibold text-gray-800 mb-2">Category</h4> -->
+          <div class="flex flex-col items-start sm:items-end">
             <span
               class="text-sm font-medium bg-teal-100 text-teal-700 px-3 py-1 rounded-full border border-teal-200 shadow-sm"
             >
@@ -120,3 +139,4 @@ function openPopup() {
     </section>
   </div>
 </template>
+

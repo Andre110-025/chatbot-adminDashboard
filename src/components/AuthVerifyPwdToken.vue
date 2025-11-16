@@ -12,6 +12,7 @@ const code = ref(['', '', '', '', '', ''])
 const inputs = ref([])
 
 const userId = computed(() => adminStore.userInfo.userId)
+console.log(userId.value)
 
 const verifyCode = async () => {
   if (loading.value) return

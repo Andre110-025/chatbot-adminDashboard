@@ -13,7 +13,7 @@ const isExpanded = ref(false)
     <div
       :class="[
         'flex-1 flex flex-col transition-all duration-300 bg-gray-100',
-        isExpanded ? 'ml-64' : 'ml-20',
+        isExpanded ? 'sm:ml-64' : 'sm:ml-[85px]',
       ]"
     >
       <div class="m-3 space-y-5">

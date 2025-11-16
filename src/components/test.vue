@@ -1,148 +1,93 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { toast } from 'vue3-toastify'
-import { useAdminStore } from '@/stores/user'
-import axios from 'axios'
-import { useModal } from 'vue-final-modal'
-import ModalAddInfo from './ModalAddInfo.vue'
-import Plus from './Icons/Plus.vue'
-import Filter from './Filter.vue'
+import { ref, watch } from 'vue'
+import Chat from './Icons/Chat.vue'
+import Dashboard from './Icons/Dashboard.vue'
+import Profile from './Icons/Profile.vue'
+import Resquest from './Icons/Resquest.vue'
+import Settings from './Icons/Settings.vue'
+import Domain from './Icons/Domain.vue'
 
-const adminStore = useAdminStore()
-const loading = ref(false)
-const allRequests = ref([])
-const selectedProductId = ref(null) // this will hold the currently selected product
-const selectedRequest = ref(null)
-
-// Fetch all info for a specific product
-const getAllRequests = async (productId) => {
-  if (!productId) return
-  try {
-    loading.value = true
-    const response = await axios.get(
-      `https://assitance.storehive.com.ng/public/api/chat/knowledge/product_id${productId}`,
-    )
-    allRequests.value = response.data.data
-  } catch (error) {
-    console.error('Failed to fetch all request:', error)
-    toast.error('Check Internet Connection')
-  } finally {
-    loading.value = false
-  }
-}
-
-// Watch for product selection change
-watch(selectedProductId, (newId) => {
-  getAllRequests(newId)
+const props = defineProps({
+  isExpanded: Boolean,
 })
+const emit = defineEmits(['update:isExpanded'])
 
-// Initial fetch (optional: can fetch all or only when a product is selected)
-onMounted(() => {
-  if (selectedProductId.value) getAllRequests(selectedProductId.value)
-})
+const expanded = ref(props.isExpanded)
 
-// Open modal and pass current product id
-function openPopup() {
-  if (!selectedProductId.value) {
-    toast.info('Please select a product first')
-    return
-  }
-
-  const { open, close } = useModal({
-    component: ModalAddInfo,
-    attrs: {
-      productId: selectedProductId.value, // pass it here
-      onConfirm() {
-        close()
-        getAllRequests(selectedProductId.value) // refresh after adding info
-      },
-    },
-  })
-
-  open()
-}
+watch(expanded, (val) => emit('update:isExpanded', val))
 </script>
 
 <template>
-  <div class="flex h-[570px] gap-4">
-    <!-- Sidebar -->
-    <nav class="w-[270px] bg-white shadow rounded-lg ml-1 overflow-y-auto p-5 flex flex-col">
-      <div v-if="loading" class="flex justify-center items-center h-60">
-        <div
-          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
-        ></div>
-      </div>
+<aside
+  @mouseenter="expanded = true"
+  @mouseleave="expanded = false"
+  :class="[
+    'hidden sm:fixed bottom-0 left-0 top-0 z-50 overflow-y-auto overflow-x-hidden bg-mainColor py-5 px-5 lg:flex flex-col transition-all duration-300',
+    expanded ? 'w-64' : 'w-[85px]',
+  ]"
+>
+  <div class="flex-1 space-y-3 overflow-y-auto">
+    <RouterLink :to="{ name: 'overview' }" class="dashBgNav">
+      <Dashboard />
+      <span v-show="expanded" class="sidebar-text">Overview</span>
+    </RouterLink>
 
-      <div v-else class="animate-fadeUp">
-        <h3 class="text-lg font-semibold mb-4">All Information</h3>
-        <ul class="space-y-2">
-          <li
-            v-for="(res, index) in allRequests"
-            :key="index"
-            class="cursor-pointer px-3 py-2"
-            @click="selectedRequest = res"
-          >
-            <span
-              :class="[
-                'border bg-gray-50 rounded-lg px-3 py-2 transition',
-                selectedRequest === res
-                  ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
-                  : 'hover:bg-teal-50',
-              ]"
-            >
-              {{ res.title }}
-            </span>
-          </li>
-        </ul>
-      </div>
-    </nav>
+    <RouterLink :to="{ name: 'request' }" class="dashBgNav">
+      <Resquest />
+      <span v-show="expanded" class="sidebar-text">Request</span>
+    </RouterLink>
 
-    <!-- Main section -->
-    <section class="flex-1 bg-white shadow rounded-lg p-6 overflow-y-auto">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h3 class="text-xl font-semibold text-gray-800">Information Details</h3>
-        <div class="flex flex-row gap-3">
-          <!-- Filter component -->
-          <Filter v-model:selected="selectedProductId" />
+    <RouterLink :to="{ name: 'chatreview' }" class="dashBgNav">
+      <Chat />
+      <span v-show="expanded" class="sidebar-text">Chat Review</span>
+    </RouterLink>
 
-          <!-- Add info button -->
-          <button
-            @click="openPopup()"
-            class="flex items-center gap-2 bg-mainColor text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition shadow"
-          >
-            <Plus class="w-5 h-5" />
-            Add Info
-          </button>
-        </div>
-      </div>
+    <RouterLink :to="{ name: 'addDomain' }" class="dashBgNav">
+      <Domain />
+      <span v-show="expanded" class="sidebar-text">Add Domain</span>
+    </RouterLink>
 
-      <div
-        v-if="!selectedRequest"
-        class="text-gray-400 text-center py-20 animate-[fadeFloat_0.6s_ease-out]"
-      >
-        Click a request on the left to see details
-      </div>
-
-      <div
-        v-else
-        class="border bg-gray-50 rounded-lg p-6 shadow-sm animate-fadeUp h-[450px] flex flex-col justify-between"
-      >
-        <div class="flex justify-between items-start gap-6">
-          <div class="flex-1">
-            <h4 class="text-lg font-semibold text-gray-800 mb-2">Content</h4>
-            <p class="text-gray-700 whitespace-pre-line leading-relaxed text-[15px] max-w-[650px]">
-              {{ selectedRequest.content }}
-            </p>
-          </div>
-          <div class="flex flex-col items-end">
-            <span
-              class="text-sm font-medium bg-teal-100 text-teal-700 px-3 py-1 rounded-full border border-teal-200 shadow-sm"
-            >
-              {{ selectedRequest.category }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
+    <RouterLink :to="{ name: 'settings' }" class="dashBgNav mb-2.5">
+      <Settings />
+      <span v-show="expanded" class="sidebar-text">Settings</span>
+    </RouterLink>
   </div>
+
+  <div class="divide-y divide-gray-600">
+    <RouterLink :to="{ name: 'profile' }" class="dashBgNav">
+      <Profile />
+      <span v-show="expanded" class="sidebar-text">Profile</span>
+    </RouterLink>
+  </div>
+</aside>
+
+<!-- MOBILE NAV -->
+<div class="sm:hidden fixed bottom-0 left-0 w-full bg-mainColor 
+            flex justify-around items-center py-3 z-50">
+  
+  <RouterLink :to="{ name: 'overview' }" class="flex flex-col items-center">
+    <Dashboard class="w-6 h-6" />
+  </RouterLink>
+
+  <RouterLink :to="{ name: 'request' }" class="flex flex-col items-center">
+    <Resquest class="w-6 h-6" />
+  </RouterLink>
+
+  <RouterLink :to="{ name: 'chatreview' }" class="flex flex-col items-center">
+    <Chat class="w-6 h-6" />
+  </RouterLink>
+
+  <RouterLink :to="{ name: 'addDomain' }" class="flex flex-col items-center">
+    <Domain class="w-6 h-6" />
+  </RouterLink>
+
+  <RouterLink :to="{ name: 'settings' }" class="flex flex-col items-center">
+    <Settings class="w-6 h-6" />
+  </RouterLink>
+
+  <RouterLink :to="{ name: 'profile' }" class="flex flex-col items-center">
+    <Profile class="w-6 h-6" />
+  </RouterLink>
+</div>
+
 </template>

@@ -78,13 +78,16 @@ const checkEmail = async () => {
         </button>
       </form>
 
-      <p class="text-sm text-gray-500 text-center mt-4">Remember your password?</p>
-      <RouterLink
-        :to="{ name: 'login' }"
-        class="flex items-end text-gray-700 font-semibold transition-all duration-300"
-      >
-        Login
-      </RouterLink>
+      <div class="flex items-center justify-between mt-4">
+        <p class="text-sm text-gray-500">Remember your password?</p>
+
+        <RouterLink
+          :to="{ name: 'login' }"
+          class="text-gray-700 font-semibold transition-all duration-300 hover:text-gray-900"
+        >
+          Login
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>
