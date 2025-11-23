@@ -18,14 +18,18 @@
     "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.13.1",
     "chart.js": "^4.5.1",
+    "dompurify": "^3.3.0",
     "lottie-web": "^5.13.0",
     "pinia": "^3.0.3",
+    "quill": "^2.0.3",
     "vue": "^3.5.22",
     "vue-final-modal": "^4.5.5",
     "vue-router": "^4.6.3",
+    "vue3-quill": "^0.3.1",
     "vue3-toastify": "^0.2.8"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@vitejs/plugin-vue": "^6.0.1",
     "autoprefixer": "^10.4.21",
     "prettier": "3.6.2",

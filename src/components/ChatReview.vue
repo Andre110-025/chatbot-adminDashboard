@@ -9,56 +9,102 @@ import { useModal } from 'vue-final-modal'
 import ModalChatUser from './ModalChatUser.vue'
 import AdminUserChat from './AdminUserChat.vue'
 import Bin from './Icons/Bin.vue'
+import UserChat from './UserChat.vue'
 
-const issues = ref({})
+// const issues = ref({})
 const loading = ref(false)
-const showBubble = ref(false)
-const adminMessageSent = ref({})
+// const showBubble = ref(false)
+// const adminMessageSent = ref({})
+const allProducts = ref([])
+const selectedRequest = ref(null)
+const allRequests = ref([])
+const websiteName = ref('')
 
-const getAllChats = async () => {
+const getAllProducts = async () => {
   try {
     loading.value = true
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    const response = await axios.get('http://localhost:3000/api/admin/issues')
+    // await new Promise((resolve) => setTimeout(resolve, 2000))
+    const response = await axios.get('/getproduct')
     console.log(response)
-    issues.value = response.data
+    allProducts.value = response.data['all websites']
+    // websiteName.value = response.data['all websites'].website
 
-    Object.keys(issues.value).forEach(async (userId) => {
-      console.log('User ID:', userId)
-    })
+    if (allProducts.value.length > 0) {
+      selectedRequest.value = allProducts.value[0]
+      websiteName.value = allProducts.value[0].website
+
+      await getAllRequests()
+    } else {
+      selectedRequest.value = null
+      allRequests.value = []
+    }
   } catch (err) {
-    console.error('Failed to fetch admin issues:', err)
-    toast.error('Check Internet Connection')
+    console.error('Failed to fetch all products:', err)
+    toast.error('Failed to fetch all products:')
   } finally {
     loading.value = false
   }
 }
 
-// same one with the pop-up modal
-const fetchMessages = async () => {
+// for some reason because the way data, is coming grouped the flat array
+const groupByConversation = (messages) => {
+  const grouped = {}
+
+  messages.forEach((msg) => {
+    if (!grouped[msg.conversation_id]) {
+      grouped[msg.conversation_id] = []
+    }
+    grouped[msg.conversation_id].push(msg)
+  })
+
+  return Object.values(grouped)
+}
+
+const getAllRequests = async () => {
+  if (!websiteName.value) return
+
   try {
-    const response = await axios.get(`http://localhost:3000/api/admin/chat/${userId}`)
-    console.log('user-admin:', response)
-    adminMessageSent.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch messages:', error)
+    loading.value = true
+    const response = await axios.post('/returnslist', {
+      website: websiteName.value,
+    })
+    console.log(response)
+    const flatData = response.data.Returns || []
+    allRequests.value = groupByConversation(flatData)
+    // if (allRequests.value.length > 0) {
+    //   selectedRequest.value = allProducts.value[0]
+    // } else {
+    //   selectedRequest.value = null
+    // }
+  } catch (err) {
+    console.error('Failed to fetch all request:', err)
+    toast.error('Failed to fetch all request:')
   } finally {
     loading.value = false
   }
 }
 
-const clearAllIssues = () => {
-  issues.value = []
+const handleRequest = (product) => {
+  selectedRequest.value = product
+  websiteName.value = product.website
+
+  allRequests.value = []
+  // loading.value = true
+  getAllRequests()
 }
 
-function openPopup(issues) {
+onMounted(() => {
+  getAllProducts()
+  // getAllRequests()
+})
+
+function openPopup() {
   const { open, close } = useModal({
     component: ModalChatUser,
     attrs: {
-      issues,
       onConfirm() {
         close()
-        getAllChats()
+        getAllProducts()
       },
     },
   })
@@ -66,110 +112,221 @@ function openPopup(issues) {
   open()
 }
 
-onMounted(() => {
-  getAllChats()
-  fetchMessages()
-})
-
-const activeTab = ref('unreadMessages')
-
-const showTab = (active) => {
-  activeTab.value = active
+const activeTab = ref('allRequest')
+const showItem = (item) => {
+  activeTab.value = item
 }
+
+// const deleteMessage = async (messageId) => {
+//   try {
+//     await axios.post('/deleteMessage', { message_id: messageId })
+//     toast.success('Message deleted!')
+
+//     // Remove only THIS message from the UI
+//     allRequests.value = allRequests.value.map((conversation) =>
+//       conversation.filter((m) => m.id !== messageId)
+//     )
+//   } catch (err) {
+//     console.error(err)
+//     toast.error('Failed to delete message.')
+//   }
+// }
 </script>
 
 <template>
-  <section class="p-6 bg-white h-full shadow rounded-lg">
-    <div class="flex flex-row justify-between items-center">
-      <div class="text-2xl mt-[15px] text-gray-800 flex flex-col">
-        <span>Chats Review</span>
-        <p class="text-gray-800 text-[15px] mt-[-5px]">These are unresponded chat from the user</p>
-      </div>
-      <div>
-        <button
-          :disabled="loading"
-          @click="getAllChats"
-          class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+  <div class="flex flex-row px-2">
+    <div class="flex flex-row items-center space-x-4">
+      <button
+        class="mt-2.5 relative pb-2"
+        :class="activeTab === 'allRequest' ? 'text-mainColor font-semibold' : 'text-gray-500'"
+        @click="showItem('allRequest')"
+      >
+        All Request
+        <span
+          v-if="activeTab === 'allRequest'"
+          class="absolute left-0 right-0 -bottom-1 h-[2px] bg-mainColor w-5/6 mx-auto"
         >
-          <Loading v-if="loading" />
-          <span class="text-sm font-medium text-white" v-if="!loading">Refresh</span>
-        </button>
-      </div>
-    </div>
+        </span>
+      </button>
 
-    <div v-if="loading" class="flex justify-center items-center h-60">
-      <div
-        class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
-      ></div>
+      <button
+        class="mt-2.5 relative pb-2"
+        :class="activeTab === 'allChats' ? 'text-mainColor font-semibold' : 'text-gray-500'"
+        @click="showItem('allChats')"
+      >
+        All Chats
+        <span
+          v-if="activeTab === 'allChats'"
+          class="absolute left-0 right-0 -bottom-1 h-[2px] bg-mainColor w-3/4 mx-auto"
+        >
+        </span>
+      </button>
     </div>
-
-    <div v-else-if="Object.keys(issues).length" class="grid gap-5 mt-3.5">
-      <div class="animate-fadeUp">
+  </div>
+  <div
+    v-if="activeTab === 'allRequest'"
+    class="flex flex-col md:flex-row h-auto md:h-[550px] gap-4"
+  >
+    <nav
+      class="w-full md:w-[270px] bg-white shadow rounded-lg md:ml-1 overflow-y-auto p-5 flex flex-col"
+    >
+      <div v-if="loading" class="flex justify-center items-center h-60">
         <div
-          v-for="(userMessages, userId) in issues"
-          :key="userId"
-          class="bg-white shadow-sm rounded-xl border border-gray-200 hover:shadow-md transition-all p-5"
-        >
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-lg font-semibold text-gray-800">
-              User ID:
-              <span class="text-teal-600 font-mono">{{ userId }}</span>
-            </h3>
-            <div class="flex flex-row gap-2">
-              <span class="text-sm text-red-600 bg-gray-100 px-2 py-1 rounded-full">
-                {{ userMessages.length }} issue<span v-if="userMessages.length > 1">s</span>
-              </span>
-              <button @click="clearAllIssues" class="text-gray-400 hover:text-red-600 transition">
-                <!-- Trash icon SVG -->
-                <bin />
-              </button>
-            </div>
-          </div>
+          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+        ></div>
+      </div>
 
-          <div class="space-y-3">
-            <div
-              v-for="(msg, i) in userMessages"
-              :key="i"
-              class="p-4 border border-gray-100 rounded-lg bg-gray-100 shadow transition"
+      <div class="animate-fadeUp" v-else>
+        <h3 class="text-lg font-semibold mb-4">All Products Chat</h3>
+
+        <ul class="space-y-2">
+          <li
+            v-for="(res, index) in allProducts"
+            :key="index"
+            class="cursor-pointer px-2 py-1"
+            @click="handleRequest(res)"
+          >
+            <span
+              :class="[
+                'border bg-gray-50 rounded-lg px-3 py-2 block transition',
+                selectedRequest === res
+                  ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
+                  : 'hover:bg-teal-50',
+              ]"
             >
-              <p class="text-gray-800">
-                <span class="font-medium text-teal-600">User:</span> {{ msg.userText }}
-              </p>
-              <p class="text-xs text-gray-500 mt-1">
-                {{ new Date(msg.timestamp).toLocaleString() }}
-              </p>
-            </div>
+              {{ res.business_name }}
+            </span>
+          </li>
+        </ul>
+      </div>
+    </nav>
+    <section class="flex-1 px-4 bg-white h-full shadow rounded-lg">
+      <div class="flex flex-row justify-between items-center">
+        <div class="text-2xl mt-[15px] text-gray-800 flex flex-col">
+          <span>Chats Review</span>
+          <p class="text-gray-800 text-[15px] mt-[-5px]">
+            These are unresponded chat from the user
+          </p>
+        </div>
+      </div>
 
-            <div v-if="adminMessageSent.length" class="cdUser011011-status-dot"></div>
+      <div v-if="loading" class="flex justify-center items-center h-60">
+        <div
+          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+        ></div>
+      </div>
 
-            <!-- Button wrapper to align right -->
-            <div class="flex justify-end pt-2">
-              <button
-                @click="openPopup(userMessages)"
-                class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
-              >
-                <span class="text-sm font-medium text-white">Chat with user</span>
-              </button>
+      <div
+        v-else-if="allRequests.length === 0"
+        class="flex flex-col items-center justify-center h-60 text-gray-500"
+      >
+        <EmptyLoadingAnime />
+      </div>
+
+      <template v-else>
+        <div class="max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar pr-2">
+          <div class="grid gap-5 mt-3.5">
+            <div
+              v-for="(issues, index) in allRequests"
+              :key="index"
+              class="bg-white shadow-sm rounded-xl border border-gray-200 hover:shadow-md transition-all p-5 animate-fadeUp"
+            >
+              <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-semibold text-gray-800">
+                  User:
+                  <span class="text-teal-600 font-mono">{{ issues[0].conversation_id }}</span>
+                </h3>
+                <div class="flex flex-row gap-2">
+                  <span class="text-sm text-red-600 bg-gray-100 px-2 py-1 rounded-full">
+                    {{ issues.length }} issue<span v-if="issues.length > 1">s</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div
+                  v-for="(msg, i) in issues"
+                  :key="i"
+                  class="p-4 border border-gray-100 rounded-lg bg-gray-100 shadow transition"
+                >
+                  <div class="flex flex-row justify-between items-center text-gray-800">
+                    <div class="flex flex-row gap-2">
+                      <span class="font-medium text-teal-600">User:</span>
+                      <p>{{ msg.message }}</p>
+                    </div>
+                    <!-- <button @click="deleteConversation(msg.id)" title="Delete conversation">
+                  <Bin class="text-red-500" />
+                </button> -->
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">
+                    {{ new Date(msg.created_at).toLocaleString() }}
+                  </p>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                  <button
+                    @click="openPopup()"
+                    class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
+                  >
+                    <span class="text-sm font-medium text-white">Chat with user</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </template>
+    </section>
+  </div>
 
-    <div v-else class="flex flex-col items-center justify-center text-center text-gray-500">
-      <EmptyLoadingAnime />
-    </div>
-
-    <!-- <AdminUserChat v-else-if="activeTab === 'directMessages'" /> -->
-  </section>
+  <UserChat v-else-if="activeTab === 'allChats'" />
 </template>
 
 <style scoped>
-.cdUser011011-status-dot {
+/* Custom scrollbar styling */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #14b8a6 #f1f5f9;
+  scroll-behavior: smooth;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
-  background: #10b981;
-  border-radius: 50%;
-  animation: cdUser011011-pulse 2s infinite;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #0d9488 0%, #0f766e 100%);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #0f766e;
+}
+
+/* Fade animation */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeUp {
+  animation: fadeUp 0.5s ease-out;
 }
 </style>

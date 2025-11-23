@@ -1,93 +1,74 @@
 <script setup>
-import { ref, watch } from 'vue'
-import Chat from './Icons/Chat.vue'
-import Dashboard from './Icons/Dashboard.vue'
-import Profile from './Icons/Profile.vue'
-import Resquest from './Icons/Resquest.vue'
-import Settings from './Icons/Settings.vue'
-import Domain from './Icons/Domain.vue'
+// dummy data for now
+const users = [
+  { id: 1, name: 'John Doe', lastMessage: 'Hello admin…' },
+  { id: 2, name: 'Sarah James', lastMessage: 'How do I reset…' },
+  { id: 3, name: 'Michael', lastMessage: 'Thanks!' },
+]
 
-const props = defineProps({
-  isExpanded: Boolean,
-})
-const emit = defineEmits(['update:isExpanded'])
-
-const expanded = ref(props.isExpanded)
-
-watch(expanded, (val) => emit('update:isExpanded', val))
+const messages = [
+  { sender: 'user', text: 'Hey admin, I need help' },
+  { sender: 'admin', text: 'Sure, what’s the issue?' },
+  { sender: 'user', text: 'My API key is not working' },
+]
 </script>
 
 <template>
-<aside
-  @mouseenter="expanded = true"
-  @mouseleave="expanded = false"
-  :class="[
-    'hidden sm:fixed bottom-0 left-0 top-0 z-50 overflow-y-auto overflow-x-hidden bg-mainColor py-5 px-5 lg:flex flex-col transition-all duration-300',
-    expanded ? 'w-64' : 'w-[85px]',
-  ]"
->
-  <div class="flex-1 space-y-3 overflow-y-auto">
-    <RouterLink :to="{ name: 'overview' }" class="dashBgNav">
-      <Dashboard />
-      <span v-show="expanded" class="sidebar-text">Overview</span>
-    </RouterLink>
+  <div class="flex flex-col md:flex-row h-auto md:h-[550px] gap-4">
+    <!-- LEFT SIDEBAR -->
+    <nav class="w-full md:w-[270px] bg-white shadow rounded-lg overflow-y-auto p-4 flex flex-col">
+      <p class="text-xl font-semibold mb-3 text-gray-700">All Users</p>
 
-    <RouterLink :to="{ name: 'request' }" class="dashBgNav">
-      <Resquest />
-      <span v-show="expanded" class="sidebar-text">Request</span>
-    </RouterLink>
+      <div
+        v-for="user in users"
+        :key="user.id"
+        class="p-3 rounded-lg hover:bg-gray-100 cursor-pointer border-b"
+      >
+        <p class="font-medium text-gray-800">{{ user.name }}</p>
+        <p class="text-sm text-gray-500 truncate">{{ user.lastMessage }}</p>
+      </div>
+    </nav>
 
-    <RouterLink :to="{ name: 'chatreview' }" class="dashBgNav">
-      <Chat />
-      <span v-show="expanded" class="sidebar-text">Chat Review</span>
-    </RouterLink>
+    <!-- CHAT PANEL -->
+    <section class="flex-1 bg-white shadow rounded-lg flex flex-col">
+      <!-- TOP HEADER -->
+      <div class="p-4 border-b flex items-center justify-between">
+        <div>
+          <p class="text-lg font-semibold text-gray-800">John Doe</p>
+          <p class="text-sm text-gray-500 mt-[-3px]">Active now</p>
+        </div>
+      </div>
 
-    <RouterLink :to="{ name: 'addDomain' }" class="dashBgNav">
-      <Domain />
-      <span v-show="expanded" class="sidebar-text">Add Domain</span>
-    </RouterLink>
+      <!-- CHAT MESSAGES -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+        <div
+          v-for="(msg, i) in messages"
+          :key="i"
+          class="flex"
+          :class="msg.sender === 'admin' ? 'justify-end' : 'justify-start'"
+        >
+          <div
+            class="max-w-[70%] p-3 rounded-xl text-sm"
+            :class="
+              msg.sender === 'admin'
+                ? 'bg-teal-600 text-white rounded-br-none'
+                : 'bg-white text-gray-800 shadow rounded-bl-none'
+            "
+          >
+            {{ msg.text }}
+          </div>
+        </div>
+      </div>
 
-    <RouterLink :to="{ name: 'settings' }" class="dashBgNav mb-2.5">
-      <Settings />
-      <span v-show="expanded" class="sidebar-text">Settings</span>
-    </RouterLink>
+      <!-- INPUT BAR -->
+      <div class="p-3 border-t flex gap-2">
+        <input
+          type="text"
+          placeholder="Type a message"
+          class="flex-1 p-3 border rounded-lg focus:outline-none"
+        />
+        <button class="bg-teal-600 text-white px-4 rounded-lg">Send</button>
+      </div>
+    </section>
   </div>
-
-  <div class="divide-y divide-gray-600">
-    <RouterLink :to="{ name: 'profile' }" class="dashBgNav">
-      <Profile />
-      <span v-show="expanded" class="sidebar-text">Profile</span>
-    </RouterLink>
-  </div>
-</aside>
-
-<!-- MOBILE NAV -->
-<div class="sm:hidden fixed bottom-0 left-0 w-full bg-mainColor 
-            flex justify-around items-center py-3 z-50">
-  
-  <RouterLink :to="{ name: 'overview' }" class="flex flex-col items-center">
-    <Dashboard class="w-6 h-6" />
-  </RouterLink>
-
-  <RouterLink :to="{ name: 'request' }" class="flex flex-col items-center">
-    <Resquest class="w-6 h-6" />
-  </RouterLink>
-
-  <RouterLink :to="{ name: 'chatreview' }" class="flex flex-col items-center">
-    <Chat class="w-6 h-6" />
-  </RouterLink>
-
-  <RouterLink :to="{ name: 'addDomain' }" class="flex flex-col items-center">
-    <Domain class="w-6 h-6" />
-  </RouterLink>
-
-  <RouterLink :to="{ name: 'settings' }" class="flex flex-col items-center">
-    <Settings class="w-6 h-6" />
-  </RouterLink>
-
-  <RouterLink :to="{ name: 'profile' }" class="flex flex-col items-center">
-    <Profile class="w-6 h-6" />
-  </RouterLink>
-</div>
-
 </template>

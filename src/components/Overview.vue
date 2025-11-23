@@ -22,6 +22,10 @@ const loading = ref(false)
 let userChart = null
 let smallChart = null
 
+// console.log(adminStore.userInfo.userId)
+// const userId = computed(() => adminStore.userInfo.userId)
+// console.log(userId.value)
+
 const getAllChats = async () => {
   try {
     loading.value = true

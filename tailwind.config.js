@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       screens: {
-        sm600: "600px"
+        sm600: '600px',
       },
       colors: {
         mainColor: '#05716c',
@@ -25,5 +25,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/typography')],
 }

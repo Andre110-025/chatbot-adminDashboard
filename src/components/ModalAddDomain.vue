@@ -42,7 +42,7 @@ const submitDomain = async () => {
 
   try {
     loading.value = true
-    const response = await axios.post('https://assitance.storehive.com.ng/public/api/addproduct', {
+    const response = await axios.post('/addproduct', {
       website: domainData.website,
       business_name: domainData.business_name,
       category: domainData.business_category,
@@ -50,6 +50,10 @@ const submitDomain = async () => {
     console.log(response)
     Object.keys(domainData).forEach((key) => (domainData[key] = ''))
     toast.success('Form submitted successfully')
+    setTimeout(() => {
+      emit('confirm')
+      window.location.reload()
+    }, 3000)
   } catch (error) {
     toast.error('Could not submit form')
     console.error(error)

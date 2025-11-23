@@ -152,7 +152,7 @@ watch(chatMessages, () => {
     </header>
 
     <div class="flex flex-1 overflow-hidden">
-      <aside v-if="issues.length" class="w-80 border-r border-gray-200 bg-gray-50 flex flex-col">
+      <aside v-if="issues" class="w-80 border-r border-gray-200 bg-gray-50 flex flex-col">
         <div class="px-4 py-3 border-b border-gray-200 bg-white">
           <div class="flex items-center justify-between">
             <h3 class="font-semibold text-gray-700 flex items-center gap-2">
@@ -171,7 +171,7 @@ watch(chatMessages, () => {
               User Requests
             </h3>
             <span class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
-              {{ issues.length }}
+              {{ issues }}
             </span>
           </div>
         </div>
@@ -238,7 +238,7 @@ watch(chatMessages, () => {
         <div class="flex-1 overflow-hidden">
           <div ref="chatContainerRef" class="h-full overflow-y-auto p-6 space-y-4">
             <div
-              v-if="loading && chatMessages.length === 0"
+              v-if="loading && chatMessages === 0"
               class="flex flex-col items-center justify-center h-full gap-3"
             >
               <div
@@ -248,7 +248,7 @@ watch(chatMessages, () => {
             </div>
 
             <div
-              v-else-if="chatMessages.length === 0"
+              v-else-if="chatMessages === 0"
               class="flex flex-col items-center justify-center h-full gap-3 text-gray-400"
             >
               <svg
@@ -354,7 +354,7 @@ watch(chatMessages, () => {
                 style="min-height: 48px; max-height: 120px"
               ></textarea>
               <div class="absolute right-3 bottom-3 text-xs text-gray-400">
-                {{ adminMessage.length }}
+                {{ adminMessage }}
               </div>
             </div>
             <button

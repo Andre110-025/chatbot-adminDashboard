@@ -18,6 +18,12 @@ const showPassword = ref(false)
 const data = ref(null)
 const touched = ref(false)
 
+const userId = computed(() => adminStore.userInfo?.userId)
+
+onMounted(() => {
+  console.log('User ID:', userId.value)
+})
+
 const userData = reactive({
   email: '',
   password: '',
@@ -36,10 +42,7 @@ const loginForm = async () => {
 
   try {
     loading.value = true
-    const response = await axios.post(
-      'https://assitance.storehive.com.ng/public/api/login',
-      userData,
-    )
+    const response = await axios.post('/login', userData)
     console.log(response)
 
     data.value = response.data

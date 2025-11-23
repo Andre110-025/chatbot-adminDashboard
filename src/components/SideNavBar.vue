@@ -46,7 +46,7 @@ const navItems = [
 
       <RouterLink :to="{ name: 'request' }" class="dashBgNav flex items-center">
         <Resquest class="flex-shrink-0 w-6 h-6" />
-        <span v-show="expanded" class="sidebar-text ml-3">Request</span>
+        <span v-show="expanded" class="sidebar-text ml-3">Knowledge base</span>
       </RouterLink>
 
       <RouterLink :to="{ name: 'chatreview' }" class="dashBgNav flex items-center">
@@ -56,7 +56,7 @@ const navItems = [
 
       <RouterLink :to="{ name: 'addDomain' }" class="dashBgNav flex items-center">
         <Domain class="flex-shrink-0 w-6 h-6" />
-        <span v-show="expanded" class="sidebar-text ml-3">Add Domain</span>
+        <span v-show="expanded" class="sidebar-text ml-3">Manage Domain</span>
       </RouterLink>
 
       <RouterLink :to="{ name: 'settings' }" class="dashBgNav mb-2.5 flex items-center">

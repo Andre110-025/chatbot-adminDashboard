@@ -78,10 +78,7 @@ const signInForm = async () => {
   try {
     loading.value = true
     const { cpassword, ...payload } = userData
-    const response = await axios.post(
-      'https://assitance.storehive.com.ng/public/api/register',
-      payload,
-    )
+    const response = await axios.post('/register', payload)
     console.log(response)
     data.value = response.data
 

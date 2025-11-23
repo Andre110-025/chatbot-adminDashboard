@@ -30,10 +30,7 @@ const getVerifyEmail = async () => {
   email.value = userEmail
 
   try {
-    const response = await axios.patch(
-      'https://assitance.storehive.com.ng/public/api/checkemailandsendtoken',
-      { email: userEmail },
-    )
+    const response = await axios.patch('/checkemailandsendtoken', { email: userEmail })
     console.log(response)
   } catch (error) {
     toast.error('Error sending verification email')
@@ -72,13 +69,10 @@ const submitCode = async () => {
   try {
     loading.value = true
     const enteredCode = code.value.join('')
-    const response = await axios.patch(
-      'https://assitance.storehive.com.ng/public/api/verifyemail',
-      {
-        userid: userId.value,
-        token: Number(enteredCode),
-      },
-    )
+    const response = await axios.patch('/verifyemail', {
+      userid: userId.value,
+      token: Number(enteredCode),
+    })
     toast.success('Account Created Successfully')
     router.push({ name: 'overview' })
     console.log(response)

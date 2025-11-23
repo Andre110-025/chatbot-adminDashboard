@@ -64,8 +64,14 @@ export const useAdminStore = defineStore('admin', () => {
 
   function logout() {
     token.value = null
-    userInfo.expiry_date = ''
+    userInfo.full_name = ''
+    userInfo.email = ''
+    userInfo.phone_number = ''
+    userInfo.business_name = ''
+    userInfo.website = ''
+    userInfo.full_address = ''
     userInfo.userId = ''
+    userInfo.expiry_date = ''
     delete axios.defaults.headers.common['Authorization']
   }
 

@@ -32,15 +32,12 @@ const checkEmail = async () => {
 
   try {
     loading.value = true
-    const response = await axios.post(
-      'https://assitance.storehive.com.ng/public/api/checkemailandsendpasswordtoken',
-      userData,
-    )
+    const response = await axios.post('/checkemailandsendpasswordtoken', userData)
     console.log(response)
 
     if (response.status == 200) {
-      adminStore.resetData.userId = response.userId
-      router.push({ name: 'verifyResetPwd' })
+      const userId = response.data.userId
+      router.push({ name: 'verifyResetPwd', query: { userId } })
     }
   } catch (error) {
     toast.error('Error trying to get code')

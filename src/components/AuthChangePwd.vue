@@ -10,15 +10,19 @@ import axios from 'axios'
 import EyeOpen from './Icons/EyeOpen.vue'
 import EyeClose from './Icons/EyeClose.vue'
 import Loading from './Icons/Loading.vue'
+import { useRoute } from 'vue-router'
 
 const loading = ref(false)
+const route = useRoute()
 const adminStore = useAdminStore()
 const router = useRouter()
 const showPwd = ref(false)
 const data = ref(null)
 const touched = ref(false)
+const userId = computed(() => route.query.userId)
+// const userId = computed(() => adminStore.userInfo.userId)
 
-const userId = computed(() => adminStore.userInfo.userId)
+console.log('userId is:', userId.value)
 
 const userData = reactive({
   password: '',
@@ -54,13 +58,10 @@ const changePassword = async () => {
   try {
     loading.value = true
     const { cpassword, ...payload } = userData
-    const response = await axios.patch(
-      'https://assitance.storehive.com.ng/public/api/changepassword',
-      {
-        userid: userId.value,
-        password: userData.password,
-      },
-    )
+    const response = await axios.patch('/changepassword', {
+      userid: userId.value,
+      password: userData.password,
+    })
     console.log(response)
     toast.success('Password Updated Successfully')
     router.push({ name: 'overview' })

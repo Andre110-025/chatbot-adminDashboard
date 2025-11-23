@@ -11,15 +11,6 @@ const router = createRouter({
       redirect: '/login',
       // name: 'auth',
       component: AuthView,
-      beforeEnter: (to, from, next) => {
-        const adminStore = useAdminStore()
-        const now = new Date()
-        if (!adminStore.token && adminStore.userInfo.expiry_date < now) {
-          next()
-        } else {
-          next({ name: 'overview' })
-        }
-      },
       children: [
         {
           path: 'login',
@@ -91,6 +82,23 @@ const router = createRouter({
       ],
     },
   ],
+})
+
+const publicPages = ['login', 'signup', 'verifyEmail', 'forgetPwd', 'verifyResetPwd', 'changePwd']
+
+router.beforeEach((to, from, next) => {
+  const adminStore = useAdminStore()
+  const now = new Date()
+  const isExpired =
+    adminStore.userInfo?.expiry_date && new Date(adminStore.userInfo.expiry_date) <= now
+  const isAuthenticated = adminStore.token && !isExpired
+
+  if (!publicPages.includes(to.name) && !isAuthenticated) {
+    adminStore.logout()
+    return next({ name: 'login' })
+  }
+
+  next()
 })
 
 export default router
