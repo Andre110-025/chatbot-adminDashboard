@@ -58,7 +58,7 @@
   }
 
   .router-link-active {
-    @apply bg-gradient-to-r from-emerald-600 to-emerald-700;
+    @apply bg-gradient-to-r from-emerald-600 to-emerald-700 border-l-4 border-white;
   }
 
   .dashBgNav svg {
@@ -75,7 +75,6 @@
   .dashBgNav:hover .sidebar-text {
     @apply text-emerald-300;
   }
-  
 }
 
 .loader {

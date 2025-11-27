@@ -65,7 +65,7 @@ const navItems = [
       </RouterLink>
     </div>
 
-    <div class="lg:mt-auto divide-y divide-gray-600">
+    <div class="divide-y divide-gray-600">
       <RouterLink :to="{ name: 'profile' }" class="dashBgNav flex items-center">
         <Profile class="flex-shrink-0 w-6 h-6" />
         <span v-show="expanded" class="sidebar-text ml-3">Profile</span>

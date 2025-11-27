@@ -40,7 +40,7 @@ const getAllProducts = async () => {
     }
   } catch (err) {
     console.error('Failed to fetch all products:', err)
-    toast.error('Failed to fetch all products:')
+    toast.warning('No chat for current website, check others')
   } finally {
     loading.value = false
   }
@@ -263,14 +263,14 @@ const showItem = (item) => {
                   </p>
                 </div>
 
-                <div class="flex justify-end pt-2">
+                <!-- <div class="flex justify-end pt-2">
                   <button
                     @click="openPopup()"
                     class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
                   >
                     <span class="text-sm font-medium text-white">Chat with user</span>
                   </button>
-                </div>
+                </div> -->
               </div>
             </div>
           </div>
@@ -286,7 +286,7 @@ const showItem = (item) => {
 /* Custom scrollbar styling */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #14b8a6 #f1f5f9;
+  scrollbar-color: #cbd5e1;
   scroll-behavior: smooth;
 }
 
@@ -301,17 +301,17 @@ const showItem = (item) => {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
+  background: #f1f5f9;
   border-radius: 10px;
   transition: background 0.3s ease;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #0d9488 0%, #0f766e 100%);
+  background: #94a3b8;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:active {
-  background: #0f766e;
+  background: #f1f5f9;
 }
 
 /* Fade animation */

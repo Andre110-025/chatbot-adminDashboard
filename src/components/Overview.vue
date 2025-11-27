@@ -11,12 +11,17 @@ import NoActiveUser from './Icons/NoActiveUser.vue'
 import EmptyNoMessage from './Icons/EmptyNoMessage.vue'
 import NoMostActive from './Icons/NoMostActive.vue'
 import { useAdminStore } from '@/stores/user'
+import Filter from './Filter.vue'
+import UserIcon from './Icons/UserIcon.vue'
+import Message from './Icons/message.vue'
+import ActiveUser from './Icons/ActiveUser.vue'
 
 Chart.register(...registerables)
 
 const adminStore = useAdminStore()
 const allChats = ref({})
 const userChartRef = ref(null)
+const selectedWebsite = ref(null)
 const smallChartRef = ref(null)
 const loading = ref(false)
 let userChart = null
@@ -26,15 +31,38 @@ let smallChart = null
 // const userId = computed(() => adminStore.userInfo.userId)
 // console.log(userId.value)
 
-const getAllChats = async () => {
+// const getAllChats = async () => {
+//   try {
+//     loading.value = true
+//     await new Promise((resolve) => setTimeout(resolve, 3000))
+//     const response = await axios.get('http://localhost:3000/api/chats')
+//     allChats.value = response.data
+//   } catch (error) {
+//     console.error(error)
+//     toast.info('Unable to get messages, try again')
+//   } finally {
+//     loading.value = false
+//   }
+// }
+
+const getAllUser = async (website) => {
+  if (!website) return
   try {
     loading.value = true
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-    const response = await axios.get('http://localhost:3000/api/chats')
-    allChats.value = response.data
+    const response = await axios.get('/chat/admin/sessions', {
+      params: { website },
+    })
+    console.log(response)
+    allChats.value = response.data.data || []
+
+    if (allChats.value.length > 0) {
+      selectedRequest.value = allChats.value[0]
+    } else {
+      selectedRequest.value = null
+    }
   } catch (error) {
-    console.error(error)
-    toast.info('Unable to get messages, try again')
+    console.error('Failed to fetch all request:', error)
+    toast.warning('No chat for current website, check others')
   } finally {
     loading.value = false
   }
@@ -53,7 +81,7 @@ const renderUserChart = () => {
       datasets: [
         {
           data: [activeUsers, userCount - activeUsers],
-          backgroundColor: ['#14b8a6', '#e5e7eb'],
+          backgroundColor: ['#14b8a6', '#cbd5e1'],
           borderWidth: 0,
         },
       ],
@@ -98,8 +126,16 @@ watch(allChats, () => {
 })
 
 const firstName = adminStore.userInfo.full_name
+watch(selectedWebsite, (val) => {
+  getAllUser(val)
+})
 
-onMounted(getAllChats)
+onMounted(() => {
+  if (selectedWebsite.value) {
+    getAllUser(selectedWebsite.value)
+  }
+})
+// onMounted(getAllChats)
 </script>
 
 <template>
@@ -150,9 +186,13 @@ onMounted(getAllChats)
         <div
           class="flex flex-col justify-center items-center w-[165px] h-[190px] bg-white shadow-sm rounded-lg p-5 text-center border border-gray-100 hover:shadow-md transition"
         >
-          <h2 class="text-lg font-semibold text-gray-700 mb-2">Coming Soon</h2>
-          <p class="text-xs text-gray-400">Additional insight will appear here</p>
+          <!-- <Filter v-model:website="selectedWebsite" /> -->
         </div>
+      </div>
+    </div>
+    <div class="w-full flex items-center justify-end mt-2 mb-1">
+      <div class="flex items-center gap-3">
+        <Filter v-model:website="selectedWebsite" />
       </div>
     </div>
 
@@ -167,11 +207,20 @@ onMounted(getAllChats)
             ></div>
           </div>
 
-          <div v-else-if="Object.keys(allChats).length">
-            <p class="text-gray-500 text-sm mb-1">Total Users</p>
-            <h2 class="text-2xl font-bold text-gray-800">
-              {{ Object.keys(allChats).length }}
-            </h2>
+          <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <UserIcon />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Total Users</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
           </div>
 
           <div v-else>
@@ -187,11 +236,22 @@ onMounted(getAllChats)
               class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
             ></div>
           </div>
-          <div v-else-if="Object.values(allChats).flat().length">
-            <p class="text-gray-500 text-sm mb-1">Total Messages</p>
-            <h2 class="text-2xl font-bold text-gray-800">
-              {{ Object.values(allChats).flat().length }}
-            </h2>
+          <div v-else-if="Object.values(allChats).flat().length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <Message />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Total Messages</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{ Object.values(allChats).flat().length }}
+              </h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
           </div>
           <div v-else>
             <NoMessageFound />
@@ -207,10 +267,21 @@ onMounted(getAllChats)
             ></div>
           </div>
           <div v-else-if="Object.values(allChats).filter((chats) => chats.length > 0).length">
-            <p class="text-gray-500 text-sm mb-1">Active Users</p>
-            <h2 class="text-2xl font-bold text-emerald-600">
-              {{ Object.values(allChats).filter((chats) => chats.length > 0).length }}
-            </h2>
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <ActiveUser />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Active Users</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{ Object.values(allChats).filter((chats) => chats.length > 0).length }}
+              </h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
           </div>
           <div v-else>
             <NoActiveUser />
@@ -229,12 +300,24 @@ onMounted(getAllChats)
           <div
             v-else-if="Object.entries(allChats).sort((a, b) => b[1].length - a[1].length)[0]?.[0]"
           >
-            <p class="text-gray-500 text-sm mb-1">Most Active User</p>
-            <h2 class="text-lg font-semibold text-gray-700 truncate">
-              {{
-                Object.entries(allChats).sort((a, b) => b[1].length - a[1].length)[0]?.[0] || 'N/A'
-              }}
-            </h2>
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <ActiveUser />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Most Active User</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{
+                  Object.entries(allChats).sort((a, b) => b[1].length - a[1].length)[0]?.[0] ||
+                  'N/A'
+                }}
+              </h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
           </div>
           <div v-else>
             <NoMostActive />
@@ -249,7 +332,7 @@ onMounted(getAllChats)
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
             <button
-              @click="getAllChats"
+              @click="allChats"
               class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
             >
               Refresh
@@ -270,21 +353,21 @@ onMounted(getAllChats)
             ></div>
           </div>
 
-          <div v-else-if="messages">
+          <div v-else-if="Message">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Recent Conversations</h2>
 
             <div class="space-y-4 max-h-[260px] overflow-y-auto">
               <div
-                v-for="([userId, messages], index) in Object.entries(allChats).slice(0, 3)"
+                v-for="([userId, Message], index) in Object.entries(allChats).slice(0, 3)"
                 :key="index"
                 class="border-b border-gray-100 pb-3 last:border-0"
               >
                 <div class="flex justify-between items-center">
                   <h3 class="font-medium text-gray-700">{{ userId }}</h3>
-                  <span class="text-xs text-gray-400">{{ messages.length }} msgs</span>
+                  <span class="text-xs text-gray-400">{{ Message.length }} msgs</span>
                 </div>
                 <p class="text-sm text-gray-500 truncate mt-1">
-                  {{ messages[messages.length - 1]?.text || 'No messages yet' }}
+                  {{ Message[Message.length - 1]?.text || 'No messages yet' }}
                 </p>
               </div>
             </div>

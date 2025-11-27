@@ -46,17 +46,22 @@ watch(selectedProductId, (newId) => {
   getAllRequests(newId)
 })
 onMounted(() => {
-  getAllRequests
+  if (selectedProductId.value) {
+    getAllRequests(selectedProductId.value)
+  }
 })
 
 const selectedRequest = ref(null)
-
 const selectRequest = (request) => {
-  selectedRequest.value = null // clear previous content first
-  nextTick(() => {
-    selectedRequest.value = request
-  })
+  selectedRequest.value = request
 }
+
+// const selectRequest = (request) => {
+//   selectedRequest.value = null // clear previous content first
+//   nextTick(() => {
+//     selectedRequest.value = request
+//   })
+// }
 
 function openPopup() {
   if (!selectedProductId.value) {
@@ -132,7 +137,7 @@ watch(search, () => {
             <span
               :class="[
                 'block border bg-gray-50 rounded-lg px-3 py-2 transition',
-                selectedRequest === res
+                selectedRequest?.id === res
                   ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
                   : 'hover:bg-teal-50',
               ]"
