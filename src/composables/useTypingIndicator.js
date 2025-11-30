@@ -1,76 +1,84 @@
-import { ref, onUnmounted } from 'vue'
-import * as Ably from 'ably'
-import { ChatClient } from '@ably/chat'
+// ──────────────────────────────────────────────────────────────
+// REACTIVE TYPING INDICATOR PER SESSION
+// ──────────────────────────────────────────────────────────────
+const typingText = ref('')
+let currentTypingRoom = null // Keep track of current room
 
-export function useTypingIndicator() {
-  const isTyping = ref(false)
-  const typingUsers = ref([]) // Array of users currently typing
-  const room = ref(null) // Chat room instance
-  const ChatClient = ref(null) // Ably Chat client instance
+// Create a dedicated Ably client just for typing (separate from your message channels)
+const typingRealtime = new Ably.Realtime({
+  key: config.ABLY_KEY,
+  clientId: `admin-${nanoid(6)}`, // Unique per admin tab
+})
 
-  const typingOptions = {
-    heartbeatThrottleMs: 3000,
+const typingChatClient = new ChatClient(typingRealtime)
+
+const typingOptions = {
+  heartbeatThrottleMs: 3000,
+}
+
+// Function to join/leave typing room when session changes
+watch(selectedSession, async (newSession, oldSession) => {
+  // Leave previous room
+  if (currentTypingRoom) {
+    await currentTypingRoom.detach()
+    currentTypingRoom.typing.unsubscribe()
+    currentTypingRoom = null
+    typingText.value = ''
   }
 
-  const initializeTyping = async (ablyClient, roomName = 'chat-typing') => {
+  // Join new room if session selected
+  if (newSession?.session_id) {
+    const roomName = `typing:${newSession.session_id}` // Unique per chat session
+
     try {
-      ChatClient.value = new ChatClient(ablyClient) // Initialize Ably Chat client
-
-      room.value = await ChatClient.value.rooms.get(roomName, { typing: typingOptions }) // Get or create chat room with typing indicator
-      await room.value.attach() // Attach to the room
-
-      // Set up typing indicator subscription
-      room.value.typing.subscribe((event) => {
-        // Exclude current user's typing status
-        const typingClientIds = Array.from(event.currentTyping).filter(
-          (id) => id !== ablyClient.clientId, // Exclude current user's clientId
-        )
-
-        typingUsers.value = typingClientIds // Update typing users list
-        isTyping.value = typingClientIds.length > 0 // Update isTyping status
-
-        console.log('Typing users updated:', typingClientIds)
+      currentTypingRoom = await typingChatClient.rooms.get(roomName, {
+        typing: typingOptions,
       })
 
-      return true
-    } catch (error) {
-      console.error('Error initializing typing indicator:', error)
-      return false
+      await currentTypingRoom.attach()
+
+      // Listen to typing events
+      currentTypingRoom.typing.subscribe((event) => {
+        const typingIds = Array.from(event.currentTyping).filter(
+          (id) => id !== typingChatClient.clientId,
+        ) // Exclude self
+
+        if (typingIds.length === 0) {
+          typingText.value = ''
+        } else if (typingIds.length === 1) {
+          const name = typingIds[0].startsWith('admin-') ? 'Admin' : 'User'
+          typingText.value = `${name} is typing...`
+        } else {
+          typingText.value = 'Several people are typing...'
+        }
+      })
+    } catch (err) {
+      console.error('Failed to join typing room:', err)
     }
   }
+})
 
-  // Function to signal that the user has started typing
-  const startTyping = async () => {
-    if (room.value) {
-      await room.value.typing.keystroke()
+// Send typing start when admin types
+let typingTimeout = null
+watch(newMessage, async (val) => {
+  if (!currentTypingRoom?.typing || !val.trim()) return
+
+  clearTimeout(typingTimeout)
+
+  await currentTypingRoom.typing.keystroke()
+
+  // Optional: auto-stop typing after 5s of inactivity
+  typingTimeout = setTimeout(async () => {
+    if (currentTypingRoom?.typing) {
+      await currentTypingRoom.typing.stop()
     }
-  }
+  }, 5000)
+})
 
-  const stopTyping = async () => {
-    if (room.value) {
-      await room.value.typing.keystroke() // ably automatically handles typing stop after heartbeat timeout
-    }
+// Cleanup on unmount
+onUnmounted(() => {
+  if (currentTypingRoom) {
+    currentTypingRoom.detach()
   }
-
-  // Function to disconnect from the typing indicator
-  const disconnect = () => {
-    if (room.value) {
-      room.value.typing.unsubscribe() // Unsubscribe from typing events
-      room.value.detach() // Detach from the room
-    }
-  }
-
-  // Clean up on component unmount
-  onUnmounted(() => {
-    disconnect()
-  })
-
-  return {
-    isTyping,
-    typingUsers,
-    initializeTyping,
-    startTyping,
-    stopTyping,
-    disconnect,
-  }
-}
+  typingRealtime.close()
+})

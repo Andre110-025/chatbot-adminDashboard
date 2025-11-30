@@ -1,6 +1,6 @@
 <script setup>
 import Filter from './Filter.vue'
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import axios from 'axios'
 import { toast } from 'vue3-toastify'
 import Extend from './Icons/Extend.vue'
@@ -8,7 +8,10 @@ import { useModal } from 'vue-final-modal'
 import ExpendedChat from './ExpendedChat.vue'
 import { useAbly } from '../composables/useAbly.js'
 import Search from './Icons/Search.vue'
-import { useTypingIndicator } from '../composables/useTypingIndicator.js'
+import * as Ably from 'ably'
+import { ChatClient } from '@ably/chat'
+import { nanoid } from 'nanoid'
+import { config } from '@/config'
 
 const loading = ref(false)
 const allChats = ref([])
@@ -19,7 +22,120 @@ const messages = ref([])
 const messagesLoading = ref(false)
 const sending = ref(false)
 const newMessage = ref('')
+const typingText = ref('')
+let currentTypingRoom = null
+let typingRealtime = null
+let typingChatClient = null
+let myClientId = ''
+// let currentTypingRoom = null
+// const typingText = ref('')
 
+// Ably setup
+// const typingRealtime = new Ably.Realtime({
+//   key: config.ABLY_KEY,
+//   clientId: `admin-${nanoid(6)}`, // Unique per admin tab
+// })
+
+// const typingChatClient = new ChatClient(typingRealtime) // Ably Chat client
+// const typingOptions = {
+//   heartbeatThrottleMs: 3000,
+// }
+
+onMounted(async () => {
+  try {
+    typingRealtime = new Ably.Realtime({
+      key: config.ABLY_KEY,
+      clientId: `admin-${nanoid(6)}`,
+      log: { level: 2 },
+    })
+
+    await typingRealtime.connection.once('connected')
+    myClientId = typingRealtime.auth.clientId // ← capture it
+
+    typingChatClient = new ChatClient(typingRealtime)
+    console.log('Admin typing client ready')
+  } catch (err) {
+    console.error('Failed to init admin typing client:', err)
+  }
+})
+
+watch(selectedSession, async (newSession, oldSession) => {
+  // Leave previous room
+  if (currentTypingRoom) {
+    try {
+      currentTypingRoom.typing.unsubscribe()
+      await currentTypingRoom.detach()
+    } catch (err) {
+      /* ignore */
+    }
+    currentTypingRoom = null
+    typingText.value = ''
+  }
+
+  // Join new room if session selected
+  if (newSession?.session_id && typingChatClient) {
+    const roomName = `typing:${newSession.session_id}` // Unique per chat session
+
+    try {
+      currentTypingRoom = await typingChatClient.rooms.get(roomName, {
+        typing: { heartbeatThrottleMs: 3000 },
+      })
+
+      await currentTypingRoom.attach()
+
+      // Listen for typing from ANYONE (user or other admins)
+      currentTypingRoom.typing.subscribe((event) => {
+        const typingIds = Array.from(event.currentTyping)
+          .filter((id) => id !== myClientId) // ← fixed!
+          .filter((id) => id.startsWith('user-') || id.startsWith('admin-'))
+
+        if (typingIds.length === 0) {
+          typingText.value = ''
+        } else if (typingIds.length === 1) {
+          typingText.value = typingIds[0].startsWith('user-')
+            ? 'User is typing...'
+            : 'Admin is typing...'
+        } else {
+          typingText.value = 'Several people are typing...'
+        }
+      })
+
+      console.log(`Joined typing room: ${roomName}`)
+    } catch (err) {
+      console.error('Failed to join typing room:', err)
+    }
+  }
+})
+
+let typingTimeout = null
+watch(newMessage, async (val) => {
+  if (!currentTypingRoom?.typing || !val.trim()) return
+
+  clearTimeout(typingTimeout)
+  try {
+    await currentTypingRoom.typing.keystroke()
+  } catch (err) {
+    /* ignore */
+  }
+
+  typingTimeout = setTimeout(async () => {
+    if (currentTypingRoom?.typing) {
+      try {
+        await currentTypingRoom.typing.stop()
+      } catch (err) {
+        /* ignore */
+      }
+    }
+  }, 5000)
+})
+
+onUnmounted(() => {
+  if (currentTypingRoom) {
+    currentTypingRoom.typing.unsubscribe()
+    currentTypingRoom.detach()
+  }
+  if (typingRealtime) typingRealtime.close()
+})
 // Initialize Ably
 const {
   isConnected,
@@ -29,18 +145,9 @@ const {
   disconnect: disconnectAbly,
 } = useAbly()
 
-const {
-  isTyping: isSomeoneTyping,
-  typingUsers,
-  initializeTyping,
-  startTyping,
-  disconnect: disconnectTyping,
-} = useTypingIndicator()
-
 // Cleanup functions for Ably subscriptions
 let unsubscribeSession = null
 let unsubscribeMessages = null
-let typingTimeout = null
 
 const getAllUser = async (website) => {
   if (!website) return
@@ -69,22 +176,6 @@ watch(selectedWebsite, (val) => {
   getAllUser(val)
 })
 
-const handleTyping = () => {
-  if (selectedSession.value) {
-    startTyping()
-
-    // Reset timeout
-    if (typingTimeout) {
-      clearTimeout(typingTimeout)
-    }
-
-    typingTimeout = setTimeout(() => {
-      // Stop typing after 3 seconds of inactivity
-      disconnectTyping()
-    }, 3000)
-  }
-}
-
 // Initialize Ably and set up subscriptions on mount
 onMounted(async () => {
   if (selectedWebsite.value) {
@@ -96,12 +187,12 @@ onMounted(async () => {
 
   if (success) {
     // if initialization is successful
-
-    // Initialize typing indicator
-    await initializeTyping(window.ablyInstance, 'admin-chat-room')
+    console.log('Ably initialized successfully')
 
     // Subscribe to new sessions
     unsubscribeSession = onNewSession((sessionData) => {
+      console.log('New session received:', sessionData)
+
       // Check if this session belongs to the selected website
       if (selectedWebsite.value && sessionData.website === selectedWebsite.value.website) {
         // Check if session already exists
@@ -115,9 +206,10 @@ onMounted(async () => {
       }
     })
 
-    // Replace your current onNewMessage subscription (around line 71) with this:
-
+    // Subscribe to new messages
     unsubscribeMessages = onNewMessage((messageData) => {
+      console.log('New message received:', messageData)
+
       // Update last message in the chat list (sidebar)
       const chatIndex = allChats.value.findIndex(
         (chat) => chat.session_id === messageData.session_id,
@@ -176,8 +268,6 @@ onMounted(async () => {
           }
         } else {
           console.log('⚠️ Message already exists in current chat, skipping')
-          console.log('Existing message:', messageExists)
-          console.log('New message ID:', messageId)
         }
       } else {
         console.log('📋 Message is for different session, only updating sidebar')
@@ -201,11 +291,6 @@ const statusText = computed(() => {
   if (!isConnected.value) {
     return 'Connecting to real-time updates...'
   }
-  // Connected
-  if (isSomeoneTyping.value && typingUsers.value.length > 0) {
-    const users = typingUsers.value.join(' and ')
-    return `${users} ${typingUsers.value.join(', ')} is typing...`
-  }
   return 'Online'
 })
 
@@ -214,11 +299,6 @@ onUnmounted(() => {
   if (unsubscribeSession) unsubscribeSession()
   if (unsubscribeMessages) unsubscribeMessages()
   disconnectAbly()
-  disconnectTyping()
-  // Clear typing timeout
-  if (typingTimeout) {
-    clearTimeout(typingTimeout)
-  }
 })
 
 const getMessages = async (sessionId) => {
@@ -280,11 +360,6 @@ const markAsRead = async (session) => {
     console.warn('Failed to mark as read', err)
   }
 }
-
-// const markAsRead = (sessionId) => {
-//   const chat = allChats.value.find(c => c.session_id === sessionId)
-//   if (chat) chat.is_admin_read = true
-// }
 
 const selectRequest = async (request) => {
   selectedSession.value = null
@@ -369,7 +444,7 @@ const sendMessage = async () => {
       sender_type: 'admin',
     })
 
-    //IMPROVED: Wait a bit for real-time update, then remove temp message
+    // Wait a bit for real-time update, then remove temp message
     setTimeout(() => {
       const tempIndex = messages.value.findIndex((m) => m.id === tempId && m.isTemporary)
       if (tempIndex !== -1) {
@@ -517,19 +592,6 @@ watch(search, () => {
         class="px-5 py-4 border-b flex items-center gap-3 bg-gradient-to-r from-teal-20 to-blue-50"
       >
         <h2 class="text-lg text-gray-800 whitespace-nowrap">All Users</h2>
-
-        <!-- <div class="relative flex-1 min-w-0">
-          <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <Search class="w-5 h-5 text-gray-400" />
-          </span>
-
-          <input
-            v-model="search"
-            type="search"
-            placeholder="Search..."
-            class="w-full pl-10 pr-4 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-mainColor focus:border-mainColor"
-          />
-        </div> -->
       </div>
 
       <div v-if="loading" class="flex justify-center items-center h-60">
@@ -668,10 +730,6 @@ watch(search, () => {
                 <p class="text-lg text-teal-600">
                   {{ selectedSession.user_email }}
                 </p>
-                <p v-if="isSomeoneTyping && typingUsers.length > 0" class="text-sm text-gray-500">
-                  {{ typingUsers.join(' and ') }}
-                  {{ typingUsers.length === 1 ? 'is' : 'are' }} typing...
-                </p>
               </div>
             </div>
 
@@ -750,26 +808,20 @@ watch(search, () => {
                   </p>
                 </div>
               </div>
-
-              <div v-if="isSomeoneTyping && typingUsers.length > 0" class="message-row user">
-                <div class="message-bubble user">
-                  <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </section>
 
         <footer class="px-6 py-4 border-t bg-white">
+          <!-- Typing Indicator -->
+          <div v-if="typingText" class="text-sm text-gray-500 italic mb-3 -mt-1 animate-fade-in">
+            {{ typingText }}
+          </div>
+
           <div class="flex gap-3">
             <input
               v-model="newMessage"
               @keyup.enter="sendMessage"
-              @keydown="handleTyping"
               :disabled="!selectedSession || sending"
               placeholder="Type your message..."
               class="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -778,7 +830,7 @@ watch(search, () => {
             <button
               @click="sendMessage"
               :disabled="!selectedSession || !newMessage.trim() || sending"
-              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2"
+              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2 whitespace-nowrap"
             >
               <svg
                 v-if="!sending"
@@ -846,38 +898,17 @@ li:hover .bg-red-50\/60 {
   background-color: rgba(254, 226, 226, 0.8) !important;
 }
 
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
 }
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #9ca3af;
-  animation: typing 1.4s infinite ease-in-out;
-}
-
-.typing-indicator span:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes typing {
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.5;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
-  30% {
-    transform: translateY(-6px);
+  to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>
