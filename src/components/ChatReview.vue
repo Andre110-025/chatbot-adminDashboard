@@ -10,6 +10,8 @@ import ModalChatUser from './ModalChatUser.vue'
 import AdminUserChat from './AdminUserChat.vue'
 import Bin from './Icons/Bin.vue'
 import UserChat from './UserChat.vue'
+// import { useModal } from 'vue-final-modal'
+import ConfirmDeleteRequest from './ConfirmDeleteRequest.vue'
 
 // const issues = ref({})
 const loading = ref(false)
@@ -117,20 +119,65 @@ const showItem = (item) => {
   activeTab.value = item
 }
 
-// const deleteMessage = async (messageId) => {
+// const deleteConversation = async () => {
 //   try {
-//     await axios.post('/deleteMessage', { message_id: messageId })
-//     toast.success('Message deleted!')
-
-//     // Remove only THIS message from the UI
-//     allRequests.value = allRequests.value.map((conversation) =>
-//       conversation.filter((m) => m.id !== messageId)
+//     await axios.delete('/deletereturns', {
+//       website: websiteName.value,
+//       conversation_id: conversation_id,
+//     })
+//     allRequests.value = allRequests.value.filter(
+//       (conversation) => conversation[0].conversation_id !== conversation,
 //     )
+//     toast.success('Message deleted!')
 //   } catch (err) {
 //     console.error(err)
 //     toast.error('Failed to delete message.')
 //   }
 // }
+
+// const deleteConversation = async (conversationId) => {
+//   if (!conversationId || !websiteName.value) {
+//     toast.warning('Cannot delete: missing conversation ID or website')
+//     return
+//   }
+
+//   try {
+//     await axios.delete('/deletereturns', {
+//       data: {
+//         website: websiteName.value,
+//         conversation_id: conversationId,
+//       },
+//     })
+
+//     // Remove the deleted conversation from the UI
+//     allRequests.value = allRequests.value.filter(
+//       (conversation) => conversation[0].conversation_id !== conversationId,
+//     )
+
+//     toast.success('Message deleted!')
+//   } catch (err) {
+//     console.error(err)
+//     toast.error('Failed to delete message.')
+//   }
+// }
+
+function deleteConversation(conversationId) {
+  const { open, close } = useModal({
+    component: ConfirmDeleteRequest,
+    attrs: {
+      website: websiteName.value,
+      id: conversationId,
+      onConfirm(id) {
+        if (id) {
+          allRequests.value = allRequests.value.filter((c) => c[0].conversation_id !== id)
+        }
+        close()
+      },
+    },
+  })
+
+  open()
+}
 </script>
 
 <template>
@@ -254,23 +301,20 @@ const showItem = (item) => {
                       <span class="font-medium text-teal-600">User:</span>
                       <p>{{ msg.message }}</p>
                     </div>
-                    <!-- <button @click="deleteConversation(msg.id)" title="Delete conversation">
-                  <Bin class="text-red-500" />
-                </button> -->
                   </div>
                   <p class="text-xs text-gray-500 mt-1">
                     {{ new Date(msg.created_at).toLocaleString() }}
                   </p>
                 </div>
 
-                <!-- <div class="flex justify-end pt-2">
+                <div class="flex justify-end pt-2">
                   <button
-                    @click="openPopup()"
-                    class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
+                    @click="deleteConversation(issues[0].conversation_id)"
+                    title="Delete conversation"
                   >
-                    <span class="text-sm font-medium text-white">Chat with user</span>
+                    <Bin class="text-red-500" />
                   </button>
-                </div> -->
+                </div>
               </div>
             </div>
           </div>

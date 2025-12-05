@@ -2,13 +2,15 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
 
-const emit = defineEmits(['update:selected', 'update:details', 'update:website'])
+const emit = defineEmits(['update:selected', 'update:details', 'update:website', 'update:apikey'])
 
 const allProducts = ref([])
 const selected = ref('') // current site selected
 const showOptions = ref(false)
 const selectedProductId = ref(null)
 const selectedWebsite = ref(null)
+const selectedApikey = ref(null)
+// const selectedId = ref(null)
 
 // toggle dropdown
 const toggleDropdown = () => (showOptions.value = !showOptions.value)
@@ -17,12 +19,14 @@ const select = (product) => {
   selected.value = product.business_name
   selectedProductId.value = product.id
   selectedWebsite.value = product.website
+  selectedApikey.value = product.api
   showOptions.value = false
 
   // emit to parent
   emit('update:selected', product.id)
   emit('update:website', product.website)
   emit('update:details', product.website)
+  emit('update:apikey', product.api)
 }
 
 // click outside
@@ -41,7 +45,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 const getAllProducts = async () => {
   try {
     const res = await axios.get('/getproduct')
-    // console.log(res)
+    console.log(res)
     allProducts.value = res.data['all websites']
 
     // automatically select first product if available
@@ -57,6 +61,7 @@ const getAllProducts = async () => {
       emit('update:selected', firstProduct.id)
       emit('update:details', firstProduct.website)
       emit('update:website', firstProduct.website)
+      emit('update:apikey', firstProduct.api)
     }
   } catch (err) {
     console.error(err)

@@ -15,17 +15,21 @@ import Filter from './Filter.vue'
 import UserIcon from './Icons/UserIcon.vue'
 import Message from './Icons/message.vue'
 import ActiveUser from './Icons/ActiveUser.vue'
+import { RouterLink } from 'vue-router'
 
 Chart.register(...registerables)
 
 const adminStore = useAdminStore()
 const allChats = ref({})
+const allMessages = ref([])
 const userChartRef = ref(null)
+const messageChartRef = ref(null)
 const selectedWebsite = ref(null)
+const selectedRequest = ref(null)
 const smallChartRef = ref(null)
 const loading = ref(false)
 let userChart = null
-let smallChart = null
+let messageChart = null
 
 // console.log(adminStore.userInfo.userId)
 // const userId = computed(() => adminStore.userInfo.userId)
@@ -68,20 +72,49 @@ const getAllUser = async (website) => {
   }
 }
 
+const totalMessageCount = computed(() =>
+  allChats.value.reduce((sum, chat) => sum + (chat.message_count || 0), 0),
+)
+
+const getMessages = async (sessionId) => {
+  if (!sessionId) {
+    allMessages.value = []
+    return
+  }
+
+  try {
+    const response = await axios.get(`/chat/admin/session/${sessionId}`, {
+      params: { website: selectedWebsite.value },
+    })
+    console.log(response)
+
+    allMessages.value = response.data.data.messages
+  } catch (err) {
+    console.error('Failed to load messages:', err.response?.data || err)
+    toast.warning(err.response?.data?.error || 'Could to load messages, try again')
+  }
+}
+
+watch(selectedRequest, (newVal) => {
+  if (newVal) {
+    getMessages(newVal.session_id)
+  }
+})
+
 const renderUserChart = () => {
-  const userCount = Object.keys(allChats.value).length
-  const activeUsers = Object.values(allChats.value).filter((msgs) => msgs.length > 0).length
+  const totalUsers = allChats.value.length
+  const totalMessages = totalMessageCount.value
 
   if (userChart) userChart.destroy()
 
   userChart = new Chart(userChartRef.value, {
     type: 'doughnut',
     data: {
-      labels: ['Active', 'Inactive'],
+      labels: ['Users', 'Message'],
       datasets: [
         {
-          data: [activeUsers, userCount - activeUsers],
-          backgroundColor: ['#14b8a6', '#cbd5e1'],
+          data: [totalUsers, totalMessages],
+          backgroundColor: ['#14b8a6', '#f97316'],
           borderWidth: 0,
         },
       ],
@@ -89,11 +122,21 @@ const renderUserChart = () => {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
       cutout: '70%',
+      plugins: {
+        legend: { display: true, position: 'bottom' },
+        tooltip: { enabled: true },
+      },
     },
   })
 }
+// watch(
+//   [allChats, () => totalMessageCount], // watch chats and message count
+//   () => {
+//     renderUserChart() // re-render chart whenever values change
+//   },
+//   { deep: true },
+// )
 
 const getTopTopic = computed(() => {
   const wordCount = {}
@@ -150,11 +193,12 @@ onMounted(() => {
             Your platform is running smoothly today.<br />
             Check key stats to stay on top of performance.
           </p>
-          <button
-            class="w-[160px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 transition"
+          <RouterLink
+            :to="{ name: 'chatreview' }"
+            class="w-[110px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 transition"
           >
             View Chat
-          </button>
+          </RouterLink>
         </div>
         <div class="ml-auto h-full flex items-end">
           <Illustration />
@@ -163,30 +207,63 @@ onMounted(() => {
 
       <div class="flex flex-row flex-wrap justify-between gap-5 min-w-[350px]">
         <div
-          class="flex flex-col justify-center items-center w-[185px] h-[190px] bg-white shadow-sm hover:shadow-md transition-all duration-300 rounded-xl border border-gray-100 p-5 text-center relative overflow-hidden"
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
         >
-          <div
-            class="w-10 h-10 flex items-center justify-center rounded-full bg-teal-100 text-teal-600 mb-2 shadow-sm"
-          >
-            <MiniChat class="w-5 h-5" />
+          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+            <div
+              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+            ></div>
           </div>
 
-          <h2 class="text-base font-semibold text-gray-700 mb-1 tracking-wide">Top Topic</h2>
+          <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <UserIcon />
+              </div>
 
-          <h3 class="text-lg font-bold text-gray-800 capitalize">
-            "{{ getTopTopic.word || 'N/A' }}"
-          </h3>
+              <p class="text-gray-500 text-sm mb-1">Total Users</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
 
-          <p class="text-sm text-gray-500 mt-2">
-            <span class="font-semibold text-teal-600"> {{ getTopTopic.percent || 0 }}% </span>
-            of chats
-          </p>
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
+          </div>
+
+          <div v-else class="w-[155px]">
+            <NoUserFound />
+          </div>
         </div>
 
         <div
-          class="flex flex-col justify-center items-center w-[165px] h-[190px] bg-white shadow-sm rounded-lg p-5 text-center border border-gray-100 hover:shadow-md transition"
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
         >
-          <!-- <Filter v-model:website="selectedWebsite" /> -->
+          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+            <div
+              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+            ></div>
+          </div>
+          <div v-else-if="Object.values(allMessages).flat().length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <Message />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Total Messages</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{ totalMessageCount }}
+              </h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
+          </div>
+          <div v-else class="w-[155px]">
+            <NoMessageFound />
+          </div>
         </div>
       </div>
     </div>
@@ -197,7 +274,7 @@ onMounted(() => {
     </div>
 
     <section class="w-full mt-4 space-y-6">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div
           class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
         >
@@ -247,7 +324,7 @@ onMounted(() => {
               <p class="text-gray-500 text-sm mb-1">Total Messages</p>
               <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
               <h2 class="text-2xl font-bold text-gray-800">
-                {{ Object.values(allChats).flat().length }}
+                {{ Object.values(allMessages).length }}
               </h2>
 
               <p class="text-xs text-gray-400 mt-2">Across all sources</p>
@@ -323,7 +400,7 @@ onMounted(() => {
             <NoMostActive />
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div
@@ -332,7 +409,7 @@ onMounted(() => {
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
             <button
-              @click="allChats"
+              @click="getAllUser"
               class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
             >
               Refresh
@@ -353,21 +430,21 @@ onMounted(() => {
             ></div>
           </div>
 
-          <div v-else-if="Message">
+          <div v-else-if="allMessages">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Recent Conversations</h2>
 
             <div class="space-y-4 max-h-[260px] overflow-y-auto">
               <div
-                v-for="([userId, Message], index) in Object.entries(allChats).slice(0, 3)"
+                v-for="(recent, index) in allMessages.slice(0, 3)"
                 :key="index"
                 class="border-b border-gray-100 pb-3 last:border-0"
               >
                 <div class="flex justify-between items-center">
-                  <h3 class="font-medium text-gray-700">{{ userId }}</h3>
-                  <span class="text-xs text-gray-400">{{ Message.length }} msgs</span>
+                  <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
+                  <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
                 </div>
-                <p class="text-sm text-gray-500 truncate mt-1">
-                  {{ Message[Message.length - 1]?.text || 'No messages yet' }}
+                <p class="text-sm text-mainColor truncate mt-1">
+                  {{ recent.message }}
                 </p>
               </div>
             </div>

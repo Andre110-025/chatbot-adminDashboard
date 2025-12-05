@@ -255,6 +255,57 @@ const extendChat = (chat) => {
   extendedChat.value = chat
   openPopup()
 }
+
+const deleteChatSession = async () => {
+  const sessionId = selectedSession.value.session_id
+  if (!sessionId) {
+    toast.info('No session selected')
+    return
+  }
+
+  try {
+    deleting.value = true
+    const website = selectedWebsite.value?.website || selectedSession.value.website
+
+    const response = await axios.delete(`chat/admin/session/${sessionId}`, {
+      params: { website: website },
+    })
+
+    console.log('Delete response:', response)
+    toast.success('Chat session marked as inactive')
+
+    // UPDATE THIS PART: Instead of removing, mark as inactive
+    const index = allChats.value.findIndex((chat) => chat.session_id === sessionId)
+    if (index !== -1) {
+      // Mark as inactive instead of removing
+      allChats.value[index] = {
+        ...allChats.value[index],
+        last_message: 'Chat cleared by admin',
+        last_message_time: new Date().toISOString(),
+        message_count: 0,
+        is_active: false,
+        is_deleted: true, // Optional: add a flag
+        is_read_admin: true, // Mark as read since it's cleared
+      }
+
+      // Optional: Move to bottom to keep UI clean
+      const [inactiveChat] = allChats.value.splice(index, 1)
+      allChats.value.push(inactiveChat)
+    }
+
+    // Clear current chat if it's the one being deleted
+    if (selectedSession.value?.session_id === sessionId) {
+      selectedSession.value = null
+      messages.value = []
+      newMessage.value = ''
+    }
+  } catch (err) {
+    console.error('Failed to delete chat session:', err)
+    toast.error('Failed to delete chat session')
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -526,6 +577,126 @@ const extendChat = (chat) => {
       </section>
     </section>
   </div>
+
+  <li
+    v-for="res in suggestions.length ? suggestions : allChats"
+    :key="(suggestions.length ? 's-' : 'a-') + res.session_id"
+    @click="selectRequest(res)"
+    class="cursor-pointer transition-all duration-200 group relative"
+  >
+    <div
+      :class="[
+        'px-4 py-3 transition-all flex items-start gap-3 mx-2 my-2 rounded-lg',
+        selectedSession?.session_id === res.session_id
+          ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200 border'
+          : 'hover:bg-gray-50 border border-transparent',
+      ]"
+    >
+      <!-- Avatar -->
+      <div
+        class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md"
+      >
+        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fill-rule="evenodd"
+            d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+            clip-rule="evenodd"
+          />
+        </svg>
+      </div>
+
+      <!-- Content Area -->
+      <div class="flex-1 min-w-0 relative">
+        <!-- Unread background -->
+        <div v-if="!res.is_read_admin" class="absolute inset-0 bg-red-50/60 rounded-lg -z-10"></div>
+
+        <!-- Top row: Email + Time + Actions -->
+        <div class="flex justify-between items-start mb-1">
+          <div class="flex-1 min-w-0">
+            <span
+              :class="[
+                'block truncate text-sm leading-tight transition-all',
+                !res.is_read_admin ? 'font-bold text-gray-900' : 'font-medium text-gray-600',
+              ]"
+            >
+              {{ res.user_email }}
+            </span>
+          </div>
+
+          <!-- Time + Actions Container -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-xs text-gray-500">
+              {{ formatTime(res.last_message_time) }}
+            </span>
+
+            <!-- Three-dot Menu Button - Shows on hover for ALL items -->
+            <button
+              @click.stop="toggleMenu(res.session_id)"
+              class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+              :class="{ 'opacity-100': activeMenuId === res.session_id }"
+              aria-label="More options"
+            >
+              <svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Last message -->
+        <p
+          :class="[
+            'text-sm truncate transition-colors pr-8',
+            !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
+          ]"
+        >
+          {{ res.last_message }}
+        </p>
+
+        <!-- Unread indicator -->
+        <span v-if="!res.is_read_admin" class="absolute -top-1 -left-6 pointer-events-none">
+          <span class="relative flex">
+            <span
+              class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-teal-200 opacity-80"
+            ></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-teal-300 shadow-lg"></span>
+          </span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Dropdown Menu (Shows for the clicked item only) -->
+    <div
+      v-if="activeMenuId === res.session_id"
+      class="absolute right-4 z-50 mt-1 w-32 rounded-md bg-white shadow-lg border border-gray-200 py-1"
+      @click.stop
+    >
+      <button
+        @click="deleteChat(res.session_id)"
+        class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          />
+        </svg>
+        Delete Chat
+      </button>
+    </div>
+  </li>
+  <!-- Change the button class from this: -->
+
+  <!-- To this (always visible): -->
+  <!-- <button 
+  @click.stop="toggleMenu(res.session_id)"
+  class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200 transition-colors opacity-70 hover:opacity-100 focus:opacity-100 focus:outline-none"
+  :class="{'opacity-100 bg-gray-100': activeMenuId === res.session_id}"
+> -->
 </template>
 
 <style scoped>

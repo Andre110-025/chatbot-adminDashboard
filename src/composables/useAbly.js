@@ -1,4 +1,3 @@
-// src/composables/useAbly.js (ADMIN SIDE - FIXED)
 import { ref, readonly } from 'vue'
 import * as Ably from 'ably'
 
@@ -8,15 +7,14 @@ const isConnected = ref(false)
 const ABLY_AUTH_URL = 'https://assitance.storehive.com.ng/public/api/ably/auth'
 
 export function useAbly() {
+  const typingTimeouts = new Map()
+
   const initializeAbly = async () => {
     if (ablyService.value) {
-      // console.log('Ably already initialized')
       return true
     }
 
     try {
-      // console.log('🔄 Initializing Ably connection...')
-
       const res = await fetch(ABLY_AUTH_URL, {
         method: 'POST',
         credentials: 'include',
@@ -33,7 +31,7 @@ export function useAbly() {
       }
 
       const json = await res.json()
-      console.log('Auth response:', json)
+      // console.log('Auth response:', json)
 
       if (!json.success) {
         throw new Error(json.message || json.error || 'Auth failed')
@@ -48,7 +46,6 @@ export function useAbly() {
 
       ably.connection.on('connected', () => {
         // console.log('✅ Ably CONNECTED (Admin)')
-        // console.log('Client ID:', json.data.clientId || 'anonymous')
         isConnected.value = true
       })
 
@@ -67,12 +64,12 @@ export function useAbly() {
       })
 
       ably.connection.on('suspended', () => {
-        // console.warn('Ably connection suspended')
+        console.warn('Ably connection suspended')
         isConnected.value = false
       })
 
       ably.connection.on('closed', () => {
-        // console.log('Ably connection closed')
+        console.log('Ably connection closed')
         isConnected.value = false
       })
 
@@ -80,17 +77,13 @@ export function useAbly() {
       return true
     } catch (err) {
       console.error('Ably initialization failed:', err)
-      console.error('Error details:', {
-        message: err.message,
-        stack: err.stack,
-      })
       return false
     }
   }
 
   const subscribe = (channelName, callback) => {
     if (!ablyService.value) {
-      console.error(' Cannot subscribe: Ably not initialized')
+      console.error('Cannot subscribe: Ably not initialized')
       return () => {}
     }
 
@@ -98,11 +91,6 @@ export function useAbly() {
       const channel = ablyService.value.channels.get(channelName)
 
       channel.subscribe((msg) => {
-        // console.log(`RAW MESSAGE on [${channelName}]:`, {
-        //   name: msg.name,
-        //   data: msg.data,
-        //   timestamp: msg.timestamp,
-        // })
         callback(msg)
       })
 
@@ -118,12 +106,8 @@ export function useAbly() {
     }
   }
 
-  // Check msg.name instead of msg.data.event_type
   const onNewSession = (callback) => {
     return subscribe('admin-sessions', (msg) => {
-      // console.log('🔔 ADMIN RAW SESSION MESSAGE:', msg)
-
-      //  Check msg.name, not msg.data.event_type
       if (msg.name === 'new.session') {
         // console.log('🆕 Admin received new.session:', msg.data)
         callback(msg.data)
@@ -131,12 +115,8 @@ export function useAbly() {
     })
   }
 
-  // Check msg.name instead of msg.data.event_type
   const onNewMessage = (callback) => {
     return subscribe('chat-messages', (msg) => {
-      // console.log('🔔 ADMIN RAW CHAT MESSAGE:', msg)
-
-      //  Check msg.name, not msg.data.event_type
       if (msg.name === 'new.message') {
         // console.log('💬 Admin received new.message:', msg.data)
         callback(msg.data)
@@ -154,13 +134,6 @@ export function useAbly() {
       const channel = ablyService.value.channels.get('chat-messages')
 
       const handler = (msg) => {
-        // console.log('📩 Message for session filter:', {
-        //   eventName: msg.name,
-        //   sessionId: msg.data?.session_id,
-        //   targetSession: sessionId,
-        // })
-
-        // ✅ FIXED: Check msg.name
         if (msg.name === 'new.message' && msg.data) {
           if (msg.data.session_id === sessionId) {
             // console.log('💬 Message received for session:', msg.data)
@@ -174,7 +147,7 @@ export function useAbly() {
 
       return () => {
         channel.unsubscribe(handler)
-        // console.log(`🔕 Admin stopped listening to session: ${sessionId}`)
+        console.log(`🔕 Admin stopped listening to session: ${sessionId}`)
       }
     } catch (err) {
       console.error('❌ Subscribe error:', err)
@@ -182,12 +155,90 @@ export function useAbly() {
     }
   }
 
+  // Get channel properly
+  const sendTypingIndicator = (sessionId, isTyping) => {
+    if (!ablyService.value) {
+      console.warn('Cannot send typing indicator: Ably not initialized')
+      return
+    }
+
+    try {
+      // Get channel from ablyService
+      const channel = ablyService.value.channels.get('typing-indicator')
+
+      channel.publish('typing', {
+        session_id: sessionId,
+        sender_type: 'admin',
+        is_typing: isTyping,
+        timestamp: new Date().toISOString(),
+      })
+
+      // console.log('📤 Admin typing indicator sent:', { sessionId, isTyping })
+    } catch (err) {
+      console.error('Failed to send typing indicator:', err)
+    }
+  }
+
+  // Get channel properly
+  const onUserTyping = (callback) => {
+    if (!ablyService.value) {
+      console.error('Cannot subscribe to typing: Ably not initialized')
+      return () => {}
+    }
+
+    try {
+      // Get channel from ablyService
+      const channel = ablyService.value.channels.get('typing-indicator')
+
+      const listener = (message) => {
+        const data = message.data
+
+        // Only process typing events from users
+        if (data.sender_type === 'user') {
+          console.log('📥 User typing received:', data)
+          callback(data)
+
+          // Auto-clear after 3 seconds
+          const key = data.session_id
+          if (typingTimeouts.has(key)) {
+            clearTimeout(typingTimeouts.get(key))
+          }
+
+          if (data.is_typing) {
+            const timeout = setTimeout(() => {
+              callback({ ...data, is_typing: false })
+              typingTimeouts.delete(key)
+            }, 3000)
+            typingTimeouts.set(key, timeout)
+          } else {
+            typingTimeouts.delete(key)
+          }
+        }
+      }
+
+      channel.subscribe('typing', listener)
+      // console.log('✅ Subscribed to user typing indicators')
+
+      return () => {
+        channel.unsubscribe('typing', listener)
+        typingTimeouts.forEach((timeout) => clearTimeout(timeout))
+        typingTimeouts.clear()
+        // console.log('🔕 Unsubscribed from typing indicators')
+      }
+    } catch (err) {
+      console.error('Subscribe to typing failed:', err)
+      return () => {}
+    }
+  }
+
   const disconnect = () => {
     if (ablyService.value) {
+      typingTimeouts.forEach((timeout) => clearTimeout(timeout))
+      typingTimeouts.clear()
       ablyService.value.close()
       ablyService.value = null
       isConnected.value = false
-      // console.log('👋 Ably disconnected')
+      console.log('👋 Ably disconnected')
     }
   }
 
@@ -198,6 +249,8 @@ export function useAbly() {
     onNewSession,
     onNewMessage,
     onAdminReply,
+    sendTypingIndicator,
+    onUserTyping,
     disconnect,
   }
 }

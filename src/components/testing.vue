@@ -1,75 +1,324 @@
-<script setup>
-import { ref, onUnmounted } from 'vue'
+<script>
+import { ref, readonly } from 'vue'
 import * as Ably from 'ably'
-import { ChatClient } from '@ably/chat'
 
-export function useTypingIndicator() {
-  const isTyping = ref(false)
-  const typingUsers = ref([])
-  const room = ref(null)
-  const chatClient = ref(null)
+const ablyService = ref(null)
+const isConnected = ref(false)
 
-  const typingOptions = {
-    heartbeatThrottleMs: 3000,
-  }
+const ABLY_AUTH_URL = 'https://assitance.storehive.com.ng/public/api/ably/auth'
 
-  const initializeTyping = async (ablyClient, roomName = 'chat-typing') => {
+export function useAbly() {
+  const initializeAbly = async () => {
+    if (ablyService.value) {
+      // console.log('Ably already initialized')
+      return true
+    }
+
     try {
-      chatClient.value = new ChatClient(ablyClient)
+      // console.log('🔄 Initializing Ably connection...')
 
-      // Get room with typing capabilities
-      room.value = await chatClient.value.rooms.get(roomName, { typing: typingOptions })
-      await room.value.attach()
-
-      // Subscribe to typing events
-      room.value.typing.subscribe((event) => {
-        const typingClientIds = Array.from(event.currentlyTyping).filter(
-          (id) => id !== ablyClient.clientId,
-        )
-
-        typingUsers.value = typingClientIds
-        isTyping.value = typingClientIds.length > 0
-
-        console.log('👀 Typing users:', typingClientIds)
+      const res = await fetch(ABLY_AUTH_URL, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
       })
 
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Auth endpoint error:', errorText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
+
+      const json = await res.json()
+      console.log('Auth response:', json)
+
+      if (!json.success) {
+        throw new Error(json.message || json.error || 'Auth failed')
+      }
+
+      const ably = new Ably.Realtime({
+        token: json.data.token,
+        echoMessages: false,
+        clientId: json.data.clientId || undefined,
+        autoConnect: true,
+      })
+
+      ably.connection.on('connected', () => {
+        // console.log('✅ Ably CONNECTED (Admin)')
+        // console.log('Client ID:', json.data.clientId || 'anonymous')
+        isConnected.value = true
+      })
+
+      ably.connection.on('connecting', () => {
+        // console.log('🔄 Ably connecting...')
+      })
+
+      ably.connection.on('disconnected', () => {
+        // console.log('⚠️ Ably disconnected')
+        isConnected.value = false
+      })
+
+      ably.connection.on('failed', (error) => {
+        console.error('Ably connection failed:', error)
+        isConnected.value = false
+      })
+
+      ably.connection.on('suspended', () => {
+        // console.warn('Ably connection suspended')
+        isConnected.value = false
+      })
+
+      ably.connection.on('closed', () => {
+        // console.log('Ably connection closed')
+        isConnected.value = false
+      })
+
+      ablyService.value = ably
       return true
-    } catch (error) {
-      console.error('Error initializing typing indicator:', error)
+    } catch (err) {
+      console.error('Ably initialization failed:', err)
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack,
+      })
       return false
     }
   }
 
-  const startTyping = async () => {
-    if (room.value) {
-      await room.value.typing.keystroke()
+  const subscribe = (channelName, callback) => {
+    if (!ablyService.value) {
+      console.error(' Cannot subscribe: Ably not initialized')
+      return () => {}
+    }
+
+    try {
+      const channel = ablyService.value.channels.get(channelName)
+
+      channel.subscribe((msg) => {
+        // console.log(`RAW MESSAGE on [${channelName}]:`, {
+        //   name: msg.name,
+        //   data: msg.data,
+        //   timestamp: msg.timestamp,
+        // })
+        callback(msg)
+      })
+
+      // console.log(`Subscribed to channel: ${channelName}`)
+
+      return () => {
+        channel.unsubscribe()
+        // console.log(`Unsubscribed from channel: ${channelName}`)
+      }
+    } catch (err) {
+      console.error(`Subscribe error on ${channelName}:`, err)
+      return () => {}
     }
   }
 
-  const stopTyping = async () => {
-    if (room.value) {
-      await room.value.typing.keystroke() // Ably handles stopping automatically
+  // Check msg.name instead of msg.data.event_type
+  const onNewSession = (callback) => {
+    return subscribe('admin-sessions', (msg) => {
+      // console.log('🔔 ADMIN RAW SESSION MESSAGE:', msg)
+
+      //  Check msg.name, not msg.data.event_type
+      if (msg.name === 'new.session') {
+        // console.log('🆕 Admin received new.session:', msg.data)
+        callback(msg.data)
+      }
+    })
+  }
+
+  // Check msg.name instead of msg.data.event_type
+  const onNewMessage = (callback) => {
+    return subscribe('chat-messages', (msg) => {
+      // console.log('🔔 ADMIN RAW CHAT MESSAGE:', msg)
+
+      //  Check msg.name, not msg.data.event_type
+      if (msg.name === 'new.message') {
+        // console.log('💬 Admin received new.message:', msg.data)
+        callback(msg.data)
+      }
+    })
+  }
+
+  const onAdminReply = (sessionId, callback) => {
+    if (!ablyService.value) {
+      console.error('❌ Cannot subscribe: Ably not initialized')
+      return () => {}
+    }
+
+    try {
+      const channel = ablyService.value.channels.get('chat-messages')
+
+      const handler = (msg) => {
+        // console.log('📩 Message for session filter:', {
+        //   eventName: msg.name,
+        //   sessionId: msg.data?.session_id,
+        //   targetSession: sessionId,
+        // })
+
+        // ✅ FIXED: Check msg.name
+        if (msg.name === 'new.message' && msg.data) {
+          if (msg.data.session_id === sessionId) {
+            // console.log('💬 Message received for session:', msg.data)
+            callback(msg.data)
+          }
+        }
+      }
+
+      channel.subscribe(handler)
+      // console.log(`✅ Admin listening to session: ${sessionId}`)
+
+      return () => {
+        channel.unsubscribe(handler)
+        // console.log(`🔕 Admin stopped listening to session: ${sessionId}`)
+      }
+    } catch (err) {
+      console.error('❌ Subscribe error:', err)
+      return () => {}
     }
   }
 
   const disconnect = () => {
-    if (room.value) {
-      room.value.typing.unsubscribe()
-      room.value.detach()
+    if (ablyService.value) {
+      ablyService.value.close()
+      ablyService.value = null
+      isConnected.value = false
+      // console.log('👋 Ably disconnected')
     }
   }
 
-  onUnmounted(() => {
-    disconnect()
-  })
+  const typingTimeouts = new Map()
+  const sendTypingIndicator = (sessionId, isTyping) => {
+    if (!channel.value) return
+
+    channel.value.publish('typing-indicator', {
+      session_id: sessionId,
+      sender_type: 'admin',
+      is_typing: isTyping,
+      timestamp: new Date().toISOString(),
+    })
+  }
+
+  const onUserTyping = (callback) => {
+    if (!channel.value) return () => {}
+
+    const listener = (message) => {
+      const data = message.data
+      if (data.sender_type === 'user') {
+        callback(data)
+
+        // Auto-clear after 3 seconds
+        const key = data.session_id
+        if (typingTimeouts.has(key)) {
+          clearTimeout(typingTimeouts.get(key))
+        }
+
+        if (data.is_typing) {
+          const timeout = setTimeout(() => {
+            callback({ ...data, is_typing: false })
+          }, 3000)
+          typingTimeouts.set(key, timeout)
+        }
+      }
+    }
+
+    channel.value.subscribe('typing-indicator', listener)
+
+    return () => {
+      channel.value.unsubscribe('typing-indicator', listener)
+      typingTimeouts.forEach((timeout) => clearTimeout(timeout))
+      typingTimeouts.clear()
+    }
+  }
 
   return {
-    isTyping,
-    typingUsers,
-    initializeTyping,
-    startTyping,
-    stopTyping,
+    isConnected: readonly(isConnected),
+    initializeAbly,
+    subscribe,
+    onNewSession,
+    onNewMessage,
+    onAdminReply,
     disconnect,
+    sendTypingIndicator,
+    onUserTyping,
   }
+}
+
+function deleteConversation(conversationId) {
+  const { open, close } = useModal({
+    component: ConfirmDeleteRequest,
+    attrs: {
+      website: websiteName.value,
+      id: conversationId,
+      onConfirm(id) {
+        if (id) {
+          // Remove item here
+          allRequests.value = allRequests.value.filter((c) => c[0].conversation_id !== id)
+        }
+        close()
+      },
+    },
+  })
+
+  open()
+}
+
+const totalUsers = allChats.value.length
+const activeUsers = allChats.value.filter((c) => c.message_count > 0).length // users with messages
+const inactiveUsers = totalUsers - activeUsers
+
+const totalMessages = allChats.value.reduce((sum, c) => sum + (c.message_count || 0), 0)
+const unreadMessages = allChats.value.reduce((sum, c) => sum + (c.message_count_unread || 0), 0) // optional
+const readMessages = totalMessages - unreadMessages
+
+const renderCharts = () => {
+  if (userChart) userChart.destroy()
+  if (messageChart) messageChart.destroy()
+
+  // Users donut
+  userChart = new Chart(userChartRef.value, {
+    type: 'doughnut',
+    data: {
+      labels: ['Active', 'Inactive'],
+      datasets: [
+        {
+          data: [activeUsers, inactiveUsers],
+          backgroundColor: ['#14b8a6', '#cbd5e1'],
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: { legend: { display: false } },
+    },
+  })
+
+  // Messages donut
+  messageChart = new Chart(messageChartRef.value, {
+    type: 'doughnut',
+    data: {
+      labels: ['Read', 'Unread'],
+      datasets: [
+        {
+          data: [readMessages, unreadMessages],
+          backgroundColor: ['#3b82f6', '#f87171'],
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: { legend: { display: false } },
+    },
+  })
 }
 </script>

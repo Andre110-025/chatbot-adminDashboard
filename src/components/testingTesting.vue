@@ -1,6 +1,6 @@
 <script setup>
 import Filter from './Filter.vue'
-import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue' // 👈 Added computed
+import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import axios from 'axios'
 import { toast } from 'vue3-toastify'
 import Extend from './Icons/Extend.vue'
@@ -8,9 +8,14 @@ import { useModal } from 'vue-final-modal'
 import ExpendedChat from './ExpendedChat.vue'
 import { useAbly } from '../composables/useAbly.js'
 import Search from './Icons/Search.vue'
-import { useTypingIndicator } from '../composables/useTypingIndicator.js' // 👈 Your typing composable
+import { nanoid } from 'nanoid'
+import { config } from '@/config'
+import Delete from './Icons/Delete.vue'
+import ModalDeleteChat from './ModalDeleteChat.vue'
+import Loading from './Icons/Loading.vue'
 
 const loading = ref(false)
+const deleting = ref(false)
 const allChats = ref([])
 const selectedWebsite = ref(null)
 const selectedRequest = ref(null)
@@ -21,21 +26,23 @@ const sending = ref(false)
 const newMessage = ref('')
 
 // Initialize Ably
-const { isConnected, initializeAbly, onNewSession, onNewMessage, disconnect: disconnectAbly } = useAbly()
-
-// 👇 NEW: Initialize Typing Indicator
-const { 
-  isTyping: isSomeoneTyping, 
-  typingUsers, 
-  initializeTyping, 
-  startTyping,
-  disconnect: disconnectTyping 
-} = useTypingIndicator()
+const {
+  isConnected,
+  initializeAbly,
+  onNewSession,
+  onNewMessage,
+  sendTypingIndicator,
+  onUserTyping,
+  disconnect: disconnectAbly,
+} = useAbly()
 
 // Cleanup functions for Ably subscriptions
 let unsubscribeSession = null
 let unsubscribeMessages = null
-let typingTimeout = null // 👈 NEW: For typing timeout
+
+const userTypingMap = ref(new Map())
+let typingUnsubscribe = null
+let inputTypingTimeout = null
 
 const getAllUser = async (website) => {
   if (!website) return
@@ -64,23 +71,6 @@ watch(selectedWebsite, (val) => {
   getAllUser(val)
 })
 
-// 👇 NEW: Handle typing events
-const handleTyping = () => {
-  if (selectedSession.value) {
-    startTyping()
-    
-    // Clear existing timeout
-    if (typingTimeout) {
-      clearTimeout(typingTimeout)
-    }
-    
-    // Set new timeout (Ably will handle stopping automatically)
-    typingTimeout = setTimeout(() => {
-      // Typing will automatically stop via Ably's heartbeat
-    }, 1000)
-  }
-}
-
 // Initialize Ably and set up subscriptions on mount
 onMounted(async () => {
   if (selectedWebsite.value) {
@@ -91,11 +81,8 @@ onMounted(async () => {
   const success = await initializeAbly()
 
   if (success) {
+    // if initialization is successful
     console.log('Ably initialized successfully')
-
-    // 👇 NEW: Initialize typing with the same Ably instance
-    // Use session-specific room names for each chat
-    await initializeTyping(window.ablyInstance, 'admin-chat-room')
 
     // Subscribe to new sessions
     unsubscribeSession = onNewSession((sessionData) => {
@@ -114,9 +101,9 @@ onMounted(async () => {
       }
     })
 
+    // Subscribe to new messages
     unsubscribeMessages = onNewMessage((messageData) => {
-      console.log('📨 New message received on admin side:', messageData)
-      console.log('Raw message data structure:', JSON.stringify(messageData, null, 2))
+      console.log('New message received:', messageData)
 
       // Update last message in the chat list (sidebar)
       const chatIndex = allChats.value.findIndex(
@@ -124,35 +111,34 @@ onMounted(async () => {
       )
 
       if (chatIndex !== -1) {
+        // Update the last message and timestamp
         allChats.value[chatIndex].last_message = messageData.message
         allChats.value[chatIndex].last_message_time = messageData.timestamp
 
+        // Mark as unread if message is from user (not admin)
         if (messageData.sender_type === 'user') {
           allChats.value[chatIndex].is_read_admin = false
         }
 
+        // Move this chat to the top
         const [chat] = allChats.value.splice(chatIndex, 1)
         allChats.value.unshift(chat)
       }
 
+      // Better session ID comparison
       const messageSessionId = String(messageData.session_id).trim()
       const currentSessionId = selectedSession.value?.session_id
         ? String(selectedSession.value.session_id).trim()
         : null
 
-      console.log('🔍 Session ID Check:', {
-        messageSessionId,
-        currentSessionId,
-        match: messageSessionId === currentSessionId,
-      })
-
+      // If this message is for the currently open chat, add it to messages
       if (currentSessionId && messageSessionId === currentSessionId) {
-        console.log('✅ Message is for CURRENTLY SELECTED session, adding to chat UI')
-
+        // Generate unique ID if backend doesn't provide one
         const messageId =
           messageData.id ||
           `${messageData.session_id}-${messageData.timestamp}-${messageData.sender_type}`
 
+        // Check if message already exists by unique identifier
         const messageExists = messages.value.find((m) => {
           const existingId =
             m.id || `${m.session_id || messageSessionId}-${m.timestamp}-${m.sender_type}`
@@ -160,7 +146,6 @@ onMounted(async () => {
         })
 
         if (!messageExists) {
-          console.log('➕ Adding message to current chat UI')
           messages.value.push({
             id: messageId,
             message: messageData.message,
@@ -172,11 +157,27 @@ onMounted(async () => {
             scrollToBottom()
           })
 
+          // If message is from user, mark as read automatically
           if (messageData.sender_type === 'user') {
             markAsRead(selectedSession.value)
           }
+        } else {
+          console.log('⚠️ Message already exists in current chat, skipping')
+        }
+      } else {
+        console.log('📋 Message is for different session, only updating sidebar')
+        console.log('Current session ID:', currentSessionId)
+        console.log('Message session ID:', messageSessionId)
+
+        // Show notification for new message in other sessions
+        if (messageData.sender_type === 'user') {
+          const chat = allChats.value.find((c) => c.session_id === messageData.session_id)
+          toast.info(`New message from ${chat?.user_email || 'user'}`)
         }
       }
+    })
+    typingUnsubscribe = onUserTyping((data) => {
+      userTypingMap.value.set(data.session_id, data.is_typing)
     })
   } else {
     console.error('Failed to initialize Ably')
@@ -184,12 +185,9 @@ onMounted(async () => {
   }
 })
 
-// 👇 NEW: Enhanced status text with typing indicator
 const statusText = computed(() => {
-  if (!isConnected.value) return 'Connecting...'
-  if (isSomeoneTyping.value && typingUsers.value.length > 0) {
-    const users = typingUsers.value.join(' and ')
-    return `${users} ${typingUsers.value.length === 1 ? 'is' : 'are'} typing...`
+  if (!isConnected.value) {
+    return 'Connecting to real-time updates...'
   }
   return 'Online'
 })
@@ -198,14 +196,135 @@ const statusText = computed(() => {
 onUnmounted(() => {
   if (unsubscribeSession) unsubscribeSession()
   if (unsubscribeMessages) unsubscribeMessages()
+  if (typingUnsubscribe) typingUnsubscribe()
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
   disconnectAbly()
-  disconnectTyping() // 👈 NEW: Clean up typing
-  if (typingTimeout) {
-    clearTimeout(typingTimeout)
-  }
 })
 
-// ... rest of your existing functions (getMessages, markAsRead, selectRequest, etc.) remain the same ...
+const isCurrentUserTyping = computed(() => {
+  if (!selectedSession.value) return false
+  return userTypingMap.value.get(selectedSession.value.session_id) || false
+})
+
+const handleInputChange = () => {
+  if (!selectedSession.value) return
+
+  sendTypingIndicator(selectedSession.value.session_id, true)
+
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
+
+  inputTypingTimeout = setTimeout(() => {
+    sendTypingIndicator(selectedSession.value.session_id, false)
+  }, 1000)
+}
+
+const getMessages = async (sessionId) => {
+  if (!sessionId) {
+    messages.value = []
+    return
+  }
+
+  const website = selectedWebsite.value?.website
+  const fallbackWebsite =
+    selectedSession.value?.website ||
+    allChats.value.find((c) => c.session_id === sessionId)?.website
+
+  const finalWebsite = website || fallbackWebsite
+
+  if (!finalWebsite) {
+    toast.error('No website selected')
+    return
+  }
+
+  try {
+    messagesLoading.value = true
+    const response = await axios.get(`/chat/admin/session/${sessionId}`, {
+      params: { website: finalWebsite },
+    })
+
+    messages.value = response.data.data?.messages || []
+
+    nextTick(() => {
+      scrollToBottom()
+    })
+  } catch (err) {
+    console.error('Failed to load messages:', err.response?.data || err)
+    toast.error(err.response?.data?.error || 'Failed to load messages')
+  } finally {
+    messagesLoading.value = false
+  }
+}
+
+const markAsRead = async (session) => {
+  if (!session || session.is_read_admin) return
+
+  const website = selectedWebsite.value?.website || session.website
+
+  try {
+    await axios.post('/chat/markread', {
+      session_id: session.session_id,
+      sender_type: 'admin',
+      website: website,
+    })
+
+    // Update local state
+    const chatInList = allChats.value.find((c) => c.session_id === session.session_id)
+    if (chatInList) {
+      chatInList.is_read_admin = true
+    }
+    session.is_read_admin = true
+  } catch (err) {
+    console.warn('Failed to mark as read', err)
+  }
+}
+
+const selectRequest = async (request) => {
+  selectedSession.value = null
+  messages.value = []
+  await nextTick()
+  selectedSession.value = { ...request }
+
+  // Mark as read
+  if (!request.is_read_admin) {
+    await markAsRead(request)
+  }
+
+  // Load messages
+  await getMessages(request.session_id)
+}
+
+const formatTime = (timestamp) => {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const chatSection = ref(null)
+const scrollToBottom = () => {
+  if (chatSection.value) {
+    chatSection.value.scrollTop = chatSection.value.scrollHeight
+  }
+}
+
+watch(
+  messages,
+  () => {
+    nextTick(() => {
+      scrollToBottom()
+    })
+  },
+  { deep: true },
+)
 
 const sendMessage = async () => {
   if (!newMessage.value.trim() || !selectedSession.value) return
@@ -215,6 +334,7 @@ const sendMessage = async () => {
 
   newMessage.value = ''
 
+  // Optimistically add message to UI with a unique temp ID
   const tempId = `temp-${Date.now()}-${Math.random()}`
   const tempMessage = {
     id: tempId,
@@ -222,7 +342,7 @@ const sendMessage = async () => {
     sender_type: 'admin',
     timestamp: new Date().toISOString(),
     pending: true,
-    isTemporary: true,
+    isTemporary: true, // Mark as temporary
   }
 
   messages.value.push(tempMessage)
@@ -231,14 +351,11 @@ const sendMessage = async () => {
     scrollToBottom()
   })
 
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
+  sendTypingIndicator(selectedSession.value.session_id, false)
+
   try {
     sending.value = true
-    console.log('📤 Sending message:', {
-      session_id: selectedSession.value.session_id,
-      message: messageText,
-      website: website,
-      sender_type: 'admin',
-    })
 
     const response = await axios.post('/chat/admin/message', {
       session_id: selectedSession.value.session_id,
@@ -247,8 +364,7 @@ const sendMessage = async () => {
       sender_type: 'admin',
     })
 
-    console.log('Message sent successfully:', response.data)
-
+    // Wait a bit for real-time update, then remove temp message
     setTimeout(() => {
       const tempIndex = messages.value.findIndex((m) => m.id === tempId && m.isTemporary)
       if (tempIndex !== -1) {
@@ -257,28 +373,161 @@ const sendMessage = async () => {
       }
     }, 1000)
 
+    // Mark as read
     selectedSession.value.is_read_admin = true
   } catch (error) {
     console.error('Send error:', error.response?.data || error)
 
+    // Remove failed message immediately
     const tempIndex = messages.value.findIndex((m) => m.id === tempId)
     if (tempIndex !== -1) {
       messages.value.splice(tempIndex, 1)
     }
 
+    // Restore message to input
     newMessage.value = messageText
+
     toast.error('Failed to send message')
   } finally {
     sending.value = false
   }
 }
 
-// ... rest of your existing functions remain the same ...
+const handleModalSend = async (msg) => {
+  if (!msg.trim() || !selectedSession.value) return
+
+  const tempId = Date.now()
+  messages.value.push({
+    id: tempId,
+    message: msg,
+    sender_type: 'admin',
+    timestamp: new Date().toISOString(),
+    pending: true,
+  })
+
+  scrollToBottom()
+
+  try {
+    sending.value = true
+    await axios.post('/chat/admin/message', {
+      session_id: selectedSession.value.session_id,
+      message: msg,
+      website: selectedWebsite.value?.website,
+      sender_type: 'admin',
+    })
+
+    // Remove temp message
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIndex !== -1) {
+      messages.value.splice(tempIndex, 1)
+    }
+  } catch (err) {
+    toast.error('Failed to send message')
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIndex !== -1) {
+      messages.value.splice(tempIndex, 1)
+    }
+  } finally {
+    sending.value = false
+  }
+}
+
+function openPopup() {
+  const { open, close } = useModal({
+    component: ExpendedChat,
+    attrs: {
+      session: selectedSession.value,
+      messages: messages.value,
+      sending: sending.value,
+      loading: messagesLoading.value,
+      newMessage: newMessage.value,
+      formatTime: formatTime,
+      website: selectedWebsite.value?.website,
+      // Modal Events
+      onClose: () => close(),
+
+      onSend: (msg) => handleModalSend(msg),
+    },
+  })
+
+  open()
+}
+
+// const sessionId = selectedSession.value.session_id
+const deleteChatSession = async () => {
+  const sessionId = selectedSession.value.session_id
+  if (!sessionId) {
+    toast.info('No session selected')
+    return
+  }
+  try {
+    deleting.value = true
+    // messagesLoading.value = true
+    const website = selectedWebsite.value?.website || selectedSession.value.website
+
+    const response = await axios.delete(`chat/admin/session/${sessionId}`, {
+      params: { website: website },
+    })
+    toast.success('Chat session deleted')
+    console.log(response)
+
+    const index = allChats.value.findIndex((chat) => chat.session_id === sessionId)
+    if (index !== -1) {
+      allChats.value.splice(index, 1)
+    }
+    selectedSession.value = null
+
+    messages.value = []
+
+    newMessage.value = ''
+
+    if (allChats.value.length > 0) {
+    }
+  } catch (err) {
+    console.error('Failed to delete chat session:', err)
+    toast.error('Failed to delete chat session')
+  } finally {
+    deleting.value = false
+    // messagesLoading.value = false
+  }
+}
+
+const extendedChat = ref(null)
+
+const extendChat = (chat) => {
+  extendedChat.value = chat
+  openPopup()
+}
+
+const removeActiveTag = ref(true)
+
+setTimeout(() => {
+  removeActiveTag.value = false
+}, 10000)
+
+const search = ref('')
+const suggestions = ref([])
+
+const getEmailSuggestions = () => {
+  const term = search.value.trim().toLowerCase()
+
+  if (term.length < 3) {
+    suggestions.value = []
+    return
+  }
+
+  suggestions.value = allChats.value
+    .filter((chat) => chat.user_email.toLowerCase().includes(term))
+    .slice(0, 5)
+}
+
+watch(search, () => {
+  getEmailSuggestions()
+})
 </script>
 
 <template>
   <div class="flex flex-col md:flex-row h-auto md:h-[500px] gap-4">
-    <!-- Connection Status Indicators -->
     <div
       v-if="!isConnected && removeActiveTag"
       class="fixed top-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
@@ -295,7 +544,6 @@ const sendMessage = async () => {
       <span class="text-sm font-medium">Live updates active</span>
     </div>
 
-    <!-- Sidebar -->
     <nav
       class="w-full md:w-[320px] bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200"
     >
@@ -316,7 +564,7 @@ const sendMessage = async () => {
           v-for="res in suggestions.length ? suggestions : allChats"
           :key="(suggestions.length ? 's-' : 'a-') + res.session_id"
           @click="selectRequest(res)"
-          class="cursor-pointer transition-all duration-200"
+          class="cursor-pointer transition-all duration-200 group relative"
         >
           <div
             :class="[
@@ -326,6 +574,7 @@ const sendMessage = async () => {
                 : 'hover:bg-gray-50 border border-transparent',
             ]"
           >
+            <!-- Avatar -->
             <div
               class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md"
             >
@@ -338,12 +587,15 @@ const sendMessage = async () => {
               </svg>
             </div>
 
+            <!-- Main Content -->
             <div class="flex-1 min-w-0 relative">
+              <!-- Unread background -->
               <div
                 v-if="!res.is_read_admin"
                 class="absolute inset-0 bg-red-50/60 rounded-lg -z-10"
               ></div>
 
+              <!-- Top row: Email + Timestamp -->
               <div class="flex justify-between items-start mb-1">
                 <div class="flex-1 min-w-0">
                   <span
@@ -361,15 +613,36 @@ const sendMessage = async () => {
                 </span>
               </div>
 
-              <p
-                :class="[
-                  'text-sm truncate transition-colors',
-                  !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
-                ]"
-              >
-                {{ res.last_message }}
-              </p>
+              <!-- Bottom row: Message + Status Tag -->
+              <div class="flex justify-between items-end gap-2">
+                <!-- Message -->
+                <p
+                  :class="[
+                    'text-sm truncate transition-colors flex-1',
+                    !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
+                  ]"
+                >
+                  {{ res.last_message }}
+                </p>
 
+                <!-- Status Tag -->
+                <span
+                  v-if="res.last_message"
+                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-200 flex-shrink-0 shadow-sm transition-all duration-300 hover:shadow-md"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active
+                </span>
+
+                <span
+                  v-else
+                  class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 border border-gray-300 flex-shrink-0 transition-all duration-300"
+                >
+                  Inactive
+                </span>
+              </div>
+
+              <!-- Unread indicator -->
               <span v-if="!res.is_read_admin" class="absolute -top-1 -left-6 pointer-events-none">
                 <span class="relative flex">
                   <span
@@ -383,10 +656,30 @@ const sendMessage = async () => {
             </div>
           </div>
         </li>
+
+        <li v-if="!allChats.length" class="p-8 text-center">
+          <div
+            class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
+          >
+            <svg
+              class="w-8 h-8 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+          </div>
+          <p class="text-gray-500 font-medium">No chats found</p>
+        </li>
       </ul>
     </nav>
 
-    <!-- Main Chat Area -->
     <section
       class="flex-1 bg-white h-full shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col"
     >
@@ -405,7 +698,7 @@ const sendMessage = async () => {
           class="px-6 py-4 border-b bg-gradient-to-r from-teal-50/50 to-blue-50/50 flex items-center justify-between"
         >
           <template v-if="selectedSession">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
               <div
                 class="w-11 h-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg"
               >
@@ -421,20 +714,45 @@ const sendMessage = async () => {
                 <p class="text-lg text-teal-600">
                   {{ selectedSession.user_email }}
                 </p>
-                <!-- 👇 NEW: Typing status indicator -->
-                <p v-if="isSomeoneTyping && typingUsers.length > 0" class="text-sm text-gray-500">
-                  {{ typingUsers.join(' and ') }} {{ typingUsers.length === 1 ? 'is' : 'are' }} typing...
-                </p>
               </div>
+              <button @click="openPopup" class="rounded text-gray-400" title="Expand chat">
+                <Extend class="w-6 h-6" />
+              </button>
             </div>
 
-            <div class="flex items-center">
+            <div class="flex items-center gap-3">
               <p class="text-sm text-gray-600 font-medium">
                 {{ selectedSession.message_count }} messages
               </p>
-              <button @click="openPopup" class="p-2 rounded text-mainColor" title="Expand chat">
-                <Extend />
+              <button
+                @click="deleteChatSession()"
+                :disabled="deleting"
+                title="Delete Chat Session"
+                class="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Loading v-if="deleting" class="w-5 h-5 text-gray-700" />
+                <Delete v-else class="text-gray-700 w-5 h-5" />
               </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="flex items-center gap-2">
+              <div
+                class="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center shadow-lg"
+              >
+                <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p class="text-lg text-gray-400">No chat selected</p>
+                <p class="text-sm text-gray-400">Select a conversation from the sidebar</p>
+              </div>
             </div>
           </template>
         </header>
@@ -503,14 +821,21 @@ const sendMessage = async () => {
                   </p>
                 </div>
               </div>
-
-              <!-- 👇 NEW: Typing indicator bubble -->
-              <div v-if="isSomeoneTyping && typingUsers.length > 0" class="message-row user">
-                <div class="message-bubble user">
-                  <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+              <div v-if="isCurrentUserTyping" class="flex justify-start mb-3">
+                <div class="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+                  <div class="flex gap-1.5">
+                    <span
+                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 0ms"
+                    ></span>
+                    <span
+                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 150ms"
+                    ></span>
+                    <span
+                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 300ms"
+                    ></span>
                   </div>
                 </div>
               </div>
@@ -518,12 +843,11 @@ const sendMessage = async () => {
           </div>
         </section>
 
-        <!-- 👇 UPDATED: Input with typing detection -->
         <footer class="px-6 py-4 border-t bg-white">
           <div class="flex gap-3">
             <input
               v-model="newMessage"
-              @keydown="handleTyping" <!-- 👈 NEW: Typing detection -->
+              @input="handleInputChange"
               @keyup.enter="sendMessage"
               :disabled="!selectedSession || sending"
               placeholder="Type your message..."
@@ -533,7 +857,7 @@ const sendMessage = async () => {
             <button
               @click="sendMessage"
               :disabled="!selectedSession || !newMessage.trim() || sending"
-              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2"
+              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2 whitespace-nowrap"
             >
               <svg
                 v-if="!sending"
@@ -563,41 +887,55 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
-/* Add typing indicator styles */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #9ca3af;
-  animation: typing 1.4s infinite ease-in-out;
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
 }
 
-.typing-indicator span:nth-child(1) {
-  animation-delay: -0.32s;
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
-.typing-indicator span:nth-child(2) {
-  animation-delay: -0.16s;
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-@keyframes typing {
+@keyframes pulse-strong {
   0%,
-  60%,
   100% {
-    transform: translateY(0);
-    opacity: 0.5;
-  }
-  30% {
-    transform: translateY(-6px);
     opacity: 1;
   }
+  50% {
+    opacity: 0.6;
+  }
 }
 
-/* Rest of your existing styles... */
+.animate-ping {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.animate-ping-strong {
+  animation: pulse-strong 1.5s ease-in-out infinite;
+}
+li:hover .bg-red-50\/60 {
+  background-color: rgba(254, 226, 226, 0.8) !important;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>

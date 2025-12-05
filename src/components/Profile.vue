@@ -36,11 +36,11 @@ const logoutUser = () => {
       <div
         class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-mainColor to-red-500 flex items-center justify-center text-white text-2xl font-bold"
       >
-        {{ adminStore.userInfo?.full_name?.charAt(0)?.toUpperCase() || 'U' }}
+        {{ adminStore.userInfo?.full_name?.charAt(0)?.toUpperCase() || 'A' }}
       </div>
 
       <h2 class="text-xl font-semibold mb-2 text-gray-700">
-        {{ adminStore.userInfo?.full_name || 'Guest User' }}
+        {{ adminStore.userInfo?.full_name || 'Admin' }}
       </h2>
       <p class="text-sm mb-6 text-gray-600">You’re currently logged in. Click below to log out.</p>
 

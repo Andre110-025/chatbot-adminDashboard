@@ -9,6 +9,8 @@ import Plus from './Icons/Plus.vue'
 import Filter from './Filter.vue'
 import Search from './Icons/Search.vue'
 import DOMPurify from 'dompurify'
+import Bin from './Icons/Bin.vue'
+import ConfirmDelete from './ConfirmDelete.vue'
 
 // optional: create a reusable function
 const sanitized = (html) => DOMPurify.sanitize(html)
@@ -17,7 +19,9 @@ const adminStore = useAdminStore()
 const loading = ref(false)
 const allRequests = ref([])
 const selectedProductId = ref(null)
+const selectedWebsite = ref(null)
 // const selectedRequest = ref(null)
+const deleteWebsite = ref(null)
 
 const getAllRequests = async (productId) => {
   if (!productId) return
@@ -25,7 +29,7 @@ const getAllRequests = async (productId) => {
     loading.value = true
     const response = await axios.get(`/chat/knowledge/${productId}`)
     allRequests.value = response.data.data || []
-    // console.log(response)
+    console.log(response)
 
     // auto-select the first request if available
     if (allRequests.value.length > 0) {
@@ -44,6 +48,8 @@ const getAllRequests = async (productId) => {
 // this line right here, wait for child, grabs id, make the api call
 watch(selectedProductId, (newId) => {
   getAllRequests(newId)
+
+  deleteWebsite.value = selectedWebsite.value
 })
 onMounted(() => {
   if (selectedProductId.value) {
@@ -100,6 +106,43 @@ const getTitleSuggestion = () => {
 watch(search, () => {
   getTitleSuggestion()
 })
+
+function deleteConversation(requestId) {
+  const { open, close } = useModal({
+    component: ConfirmDelete,
+    attrs: {
+      website: deleteWebsite.value,
+      id: requestId,
+      onConfirm() {
+        close()
+      },
+    },
+  })
+
+  open()
+}
+
+// const deleteConversation = async (website) => {
+//   if (!website) {
+//     toast.warning('Cannot delete')
+//     return
+//   }
+
+//   try {
+//     await axios.delete('/deleteknowledgebase', {
+//       website: website,
+//     })
+
+//     toast.success('Message deleted!')
+//   } catch (err) {
+//     console.error(err)
+//     toast.error('Failed to delete message.')
+//   }
+// }
+
+// watch(selectedWebsite, (newWebsite) => {
+//   // deleteConversation(newWebsite)
+// })
 </script>
 
 <template>
@@ -136,13 +179,20 @@ watch(search, () => {
           >
             <span
               :class="[
-                'block border bg-gray-50 rounded-lg px-3 py-2 transition',
+                'block border bg-gray-50 rounded-lg px-3 py-2 transition flex flex-row justify-between items-center',
                 selectedRequest?.id === res
                   ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
                   : 'hover:bg-teal-50',
               ]"
             >
               {{ res.title }}
+              <button
+                class="flex items-end"
+                @click="deleteConversation(res.id)"
+                title="Delete Knownledge"
+              >
+                <Bin class="text-red-500" />
+              </button>
             </span>
           </li>
         </ul>
@@ -155,7 +205,7 @@ watch(search, () => {
 
         <div class="flex flex-wrap gap-3">
           <!-- so this guy loads first, because it's a child component -->
-          <Filter v-model:selected="selectedProductId" />
+          <Filter v-model:selected="selectedProductId" v-model:website="selectedWebsite" />
 
           <button
             @click="openPopup()"
@@ -190,7 +240,7 @@ watch(search, () => {
             <span
               class="text-sm font-medium bg-teal-100 text-teal-700 px-3 py-1 rounded-full border border-teal-200 shadow-sm"
             >
-              {{ selectedRequest.category }}
+              {{ selectedRequest.category || 'General Content' }}
             </span>
           </div>
 
