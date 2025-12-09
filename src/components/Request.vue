@@ -173,14 +173,14 @@ function deleteConversation(requestId) {
         <ul class="space-y-2">
           <li
             v-for="(res, index) in suggestions.length ? suggestions : allRequests"
-            :key="index"
+            :key="res.id"
             class="cursor-pointer"
             @click="selectRequest(res)"
           >
             <span
               :class="[
-                'block border bg-gray-50 rounded-lg px-3 py-2 transition flex flex-row justify-between items-center',
-                selectedRequest?.id === res
+                'border bg-gray-50 rounded-lg px-3 py-2 transition flex flex-row justify-between items-center',
+                selectedRequest?.id === res.id
                   ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200'
                   : 'hover:bg-teal-50',
               ]"
@@ -188,7 +188,7 @@ function deleteConversation(requestId) {
               {{ res.title }}
               <button
                 class="flex items-end"
-                @click="deleteConversation(res.id)"
+                @click.stop="deleteConversation(res.id)"
                 title="Delete Knownledge"
               >
                 <Bin class="text-red-500" />

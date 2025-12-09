@@ -24,7 +24,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="relative min-h-dvh h-dvh flex overflow-hidden">
-    <div class="relative flex-1 min-h-full w-1/2 overflow-hidden">
+    <div class="relative flex-1 min-h-full w-1/2 overflow-hidden hidden md:block">
       <Transition name="slide" mode="in-out">
         <div
           :key="images[currentSlider]"

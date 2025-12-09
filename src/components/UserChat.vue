@@ -411,7 +411,7 @@ const handleModalSend = async (msg) => {
     await axios.post('/chat/admin/message', {
       session_id: selectedSession.value.session_id,
       message: msg,
-      website: selectedWebsite.value?.website,
+      website: selectedWebsite.value?.website || selectedSession.value.website,
       sender_type: 'admin',
     })
 
@@ -431,6 +431,7 @@ const handleModalSend = async (msg) => {
   }
 }
 
+// const website = selectedWebsite.value?.website || selectedSession.value.website
 function openPopup() {
   const { open, close } = useModal({
     component: ExpendedChat,
@@ -441,7 +442,26 @@ function openPopup() {
       loading: messagesLoading.value,
       newMessage: newMessage.value,
       formatTime: formatTime,
-      website: selectedWebsite.value?.website,
+      website: selectedWebsite.value?.website || selectedSession.value.website,
+      onTypingStart: () => {
+        if (selectedSession.value) {
+          sendTypingIndicator(selectedSession.value.session_id, true)
+        }
+      },
+      onTypingStop: () => {
+        if (selectedSession.value) {
+          sendTypingIndicator(selectedSession.value.session_id, false)
+        }
+      },
+      getConnectionStatus: () => ({
+        isConnected: isConnected.value,
+        statusText: statusText.value,
+      }),
+
+      getTypingStatus: () => {
+        if (!selectedSession.value) return false
+        return userTypingMap.value.get(selectedSession.value.session_id) || false
+      },
       // Modal Events
       onClose: () => close(),
 
@@ -556,13 +576,21 @@ const getEmailSuggestions = () => {
 watch(search, () => {
   getEmailSuggestions()
 })
+
+const userListOpen = ref(true)
+
+// Add this function with your other functions
+const toggleUserList = () => {
+  userListOpen.value = !userListOpen.value
+}
 </script>
 
 <template>
-  <div class="flex flex-col md:flex-row h-auto md:h-[500px] gap-4">
+  <div class="flex flex-col lg:flex-row h-auto gap-4">
+    <!-- Status indicators - fixed on mobile but not taking too much space -->
     <div
       v-if="!isConnected && removeActiveTag"
-      class="fixed top-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+      class="lg:fixed top-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 mx-4 lg:mx-0 lg:w-auto"
     >
       <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
       <span class="text-sm font-medium">Connecting to real-time updates...</span>
@@ -570,37 +598,58 @@ watch(search, () => {
 
     <div
       v-if="isConnected && removeActiveTag"
-      class="fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+      class="lg:fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 mx-4 lg:mx-0 lg:w-auto"
     >
       <div class="w-2 h-2 rounded-full bg-green-500"></div>
       <span class="text-sm font-medium">Live updates active</span>
     </div>
 
+    <!-- User list sidebar - improved mobile layout -->
     <nav
-      class="w-full md:w-[320px] bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200"
+      class="w-full lg:w-[320px] flex-shrink-0 bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200 max-h-[50vh] lg:max-h-[500px]"
     >
       <div
-        class="px-5 py-4 border-b flex items-center gap-3 bg-gradient-to-r from-teal-20 to-blue-50"
+        class="px-4 lg:px-5 py-3 lg:py-4 border-b flex items-center justify-between bg-gradient-to-r from-teal-20 to-blue-50 sticky top-0 z-10"
       >
-        <h2 class="text-lg text-gray-800 whitespace-nowrap">All Users</h2>
+        <h2 class="text-base lg:text-lg text-gray-800 whitespace-nowrap font-semibold">
+          All Users
+        </h2>
+        <button
+          @click="toggleUserList"
+          class="lg:hidden text-gray-600 hover:text-gray-800"
+          aria-label="Toggle user list"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
       </div>
 
-      <div v-if="loading" class="flex justify-center items-center h-60">
+      <div v-if="loading" class="flex justify-center items-center h-40 lg:h-60">
         <div
-          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+          class="loader w-[32px] lg:w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
         ></div>
       </div>
 
-      <ul v-else class="flex-1 overflow-y-auto animate-fadeUp">
+      <ul
+        v-else
+        class="flex-1 overflow-y-auto animate-fadeUp"
+        :class="{ 'hidden lg:block': !userListOpen }"
+      >
         <li
           v-for="res in suggestions.length ? suggestions : allChats"
           :key="(suggestions.length ? 's-' : 'a-') + res.session_id"
           @click="selectRequest(res)"
-          class="cursor-pointer transition-all duration-200 group relative"
+          class="cursor-pointer transition-all duration-200 group"
         >
           <div
             :class="[
-              'px-4 py-3 transition-all flex items-start gap-3 mx-2 my-2 rounded-lg',
+              'px-3 lg:px-4 py-2 lg:py-3 transition-all flex items-start gap-3 mx-1 lg:mx-2 my-1 lg:my-2 rounded-lg',
               selectedSession?.session_id === res.session_id
                 ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200 border'
                 : 'hover:bg-gray-50 border border-transparent',
@@ -608,9 +657,9 @@ watch(search, () => {
           >
             <!-- Avatar -->
             <div
-              class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md"
+              class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow"
             >
-              <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-4 h-4 lg:w-5 lg:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fill-rule="evenodd"
                   d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -629,7 +678,7 @@ watch(search, () => {
                 <div class="flex-1 min-w-0">
                   <span
                     :class="[
-                      'block truncate text-sm leading-tight transition-all',
+                      'block truncate text-xs lg:text-sm leading-tight transition-all',
                       !res.is_read_admin ? 'font-bold text-gray-900' : 'font-medium text-gray-600',
                     ]"
                   >
@@ -637,15 +686,15 @@ watch(search, () => {
                   </span>
                 </div>
 
-                <span class="text-xs text-gray-500 flex-shrink-0 ml-3">
+                <span class="text-xs text-gray-500 flex-shrink-0 ml-2 lg:ml-3 text-nowrap">
                   {{ formatTime(res.last_message_time) }}
                 </span>
               </div>
 
-              <div class="flex justify-between items-end gap-2">
+              <div class="flex justify-between items-end gap-1 lg:gap-2">
                 <p
                   :class="[
-                    'text-sm truncate transition-colors flex-1',
+                    'text-xs lg:text-sm truncate transition-colors flex-1',
                     !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
                   ]"
                 >
@@ -654,27 +703,30 @@ watch(search, () => {
 
                 <span
                   v-if="res.last_message"
-                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-200 flex-shrink-0 shadow-sm transition-all duration-300 hover:shadow-md"
+                  class="inline-flex items-center gap-1 px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-200 flex-shrink-0 shadow-sm"
                 >
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Active
+                  <span class="hidden lg:inline">Active</span>
                 </span>
 
                 <span
                   v-else
-                  class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 border border-gray-300 flex-shrink-0 transition-all duration-300"
+                  class="inline-flex items-center px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full text-xs font-medium bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 border border-gray-300 flex-shrink-0"
                 >
-                  Inactive
+                  <span class="hidden lg:inline">Inactive</span>
                 </span>
               </div>
 
-              <span v-if="!res.is_read_admin" class="absolute -top-1 -left-6 pointer-events-none">
+              <span
+                v-if="!res.is_read_admin"
+                class="absolute -top-1 -left-3 lg:-left-6 pointer-events-none"
+              >
                 <span class="relative flex">
                   <span
-                    class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-teal-200 opacity-80"
+                    class="animate-ping absolute inline-flex h-2 w-2 lg:h-3 lg:w-3 rounded-full bg-teal-200 opacity-80"
                   ></span>
                   <span
-                    class="relative inline-flex rounded-full h-3 w-3 bg-teal-300 shadow-lg"
+                    class="relative inline-flex rounded-full h-2 w-2 lg:h-3 lg:w-3 bg-teal-300 shadow"
                   ></span>
                 </span>
               </span>
@@ -682,12 +734,12 @@ watch(search, () => {
           </div>
         </li>
 
-        <li v-if="!allChats.length" class="p-8 text-center">
+        <li v-if="!allChats.length" class="p-6 lg:p-8 text-center">
           <div
-            class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
+            class="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
           >
             <svg
-              class="w-8 h-8 text-gray-400"
+              class="w-6 h-6 lg:w-8 lg:h-8 text-gray-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -700,34 +752,43 @@ watch(search, () => {
               />
             </svg>
           </div>
-          <p class="text-gray-500 font-medium">No chats found</p>
+          <p class="text-gray-500 font-medium text-sm lg:text-base">No chats found</p>
         </li>
       </ul>
     </nav>
 
+    <!-- Main chat section -->
     <section
-      class="flex-1 bg-white h-full shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col"
+      class="flex-1 min-w-0 bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col min-h-[300px] lg:min-h-[500px]"
     >
       <div
-        class="px-6 py-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-gradient-to-r from-white to-gray-50"
+        class="px-4 lg:px-6 py-3 lg:py-4 border-b flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3"
       >
         <div class="flex flex-col">
-          <h1 class="text-2xl text-gray-800">User Chat</h1>
-          <p class="text-gray-600 text-sm">Admin can respond to all unanswered chat from users</p>
+          <h1 class="text-xl lg:text-2xl text-gray-800 font-semibold">User Chat</h1>
+          <p class="text-gray-600 text-xs lg:text-sm">
+            Admin can respond to all unanswered chat from users
+          </p>
         </div>
-        <Filter v-model:website="selectedWebsite" />
+        <div class="w-full lg:w-auto">
+          <Filter v-model:website="selectedWebsite" class="w-full" />
+        </div>
       </div>
 
       <section class="flex-1 flex flex-col overflow-hidden">
         <header
-          class="px-6 py-4 border-b bg-gradient-to-r from-teal-50/50 to-blue-50/50 flex items-center justify-between"
+          class="px-4 lg:px-6 py-3 lg:py-4 border-b bg-gradient-to-r from-teal-50/50 to-blue-50/50 flex items-center justify-between"
         >
           <template v-if="selectedSession">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
               <div
-                class="w-11 h-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg"
+                class="w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow flex-shrink-0"
               >
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <svg
+                  class="w-5 h-5 lg:w-6 lg:h-6 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
                   <path
                     fill-rule="evenodd"
                     d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -735,38 +796,45 @@ watch(search, () => {
                   />
                 </svg>
               </div>
-              <div>
-                <p class="text-lg text-teal-600">
+              <div class="min-w-0 flex-1">
+                <p class="text-base lg:text-lg text-teal-600 font-medium truncate">
                   {{ selectedSession.user_email }}
                 </p>
+                <p class="text-xs lg:text-sm text-gray-500 truncate">
+                  {{ selectedSession.message_count }} messages
+                </p>
               </div>
-              <button @click="openPopup" class="rounded text-gray-400" title="Expand chat">
-                <Extend class="w-6 h-6" />
-              </button>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <p class="text-sm text-gray-600 font-medium">
-                {{ selectedSession.message_count }} messages
-              </p>
-              <button
-                @click="deleteConversation()"
-                :disabled="deleting"
-                title="Delete Chat Session"
-                class="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Loading v-if="deleting" class="w-5 h-5 text-gray-700" />
-                <Delete v-else class="text-gray-700 w-5 h-5" />
-              </button>
+              <div class="flex items-center gap-1 lg:gap-3 flex-shrink-0">
+                <button
+                  @click="openPopup"
+                  class="p-1 lg:p-0 text-gray-400 hover:text-gray-600"
+                  title="Expand chat"
+                >
+                  <Extend class="w-5 h-5 lg:w-6 lg:h-6" />
+                </button>
+                <button
+                  @click="deleteConversation()"
+                  :disabled="deleting"
+                  title="Delete Chat Session"
+                  class="p-1 lg:p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Loading v-if="deleting" class="w-4 h-4 lg:w-5 lg:h-5 text-gray-700" />
+                  <Delete v-else class="text-gray-700 w-4 h-4 lg:w-5 lg:h-5" />
+                </button>
+              </div>
             </div>
           </template>
 
           <template v-else>
             <div class="flex items-center gap-2">
               <div
-                class="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center shadow-lg"
+                class="w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-gray-200 flex items-center justify-center shadow"
               >
-                <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <svg
+                  class="w-5 h-5 lg:w-6 lg:h-6 text-gray-400"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
                   <path
                     fill-rule="evenodd"
                     d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -775,25 +843,30 @@ watch(search, () => {
                 </svg>
               </div>
               <div>
-                <p class="text-lg text-gray-400">No chat selected</p>
-                <p class="text-sm text-gray-400">Select a conversation from the sidebar</p>
+                <p class="text-base lg:text-lg text-gray-400 font-medium">No chat selected</p>
+                <p class="text-xs lg:text-sm text-gray-400">
+                  Select a conversation from the sidebar
+                </p>
               </div>
             </div>
           </template>
         </header>
 
         <section
-          class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-gray-50/30 to-white"
+          class="flex-1 p-4 lg:p-6 overflow-y-auto bg-gradient-to-b from-gray-50/30 to-white"
           id="chatMessagesContainer"
           ref="chatSection"
         >
-          <div v-if="!selectedSession" class="h-[200px] flex items-center justify-center">
+          <div
+            v-if="!selectedSession"
+            class="h-[150px] lg:h-[200px] flex items-center justify-center"
+          >
             <div class="text-center">
               <div
-                class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"
+                class="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3 lg:mb-4"
               >
                 <svg
-                  class="w-10 h-10 text-gray-400"
+                  class="w-8 h-8 lg:w-10 lg:h-10 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -806,19 +879,23 @@ watch(search, () => {
                   />
                 </svg>
               </div>
-              <p class="text-gray-600 font-semibold text-lg">Select a session to view messages</p>
-              <p class="text-gray-400 text-sm mt-1">Choose a conversation from the sidebar</p>
+              <p class="text-gray-600 font-semibold text-base lg:text-lg">
+                Select a session to view messages
+              </p>
+              <p class="text-gray-400 text-xs lg:text-sm mt-1">
+                Choose a conversation from the sidebar
+              </p>
             </div>
           </div>
 
           <div v-else>
-            <div v-if="messagesLoading" class="flex justify-center items-center h-60">
+            <div v-if="messagesLoading" class="flex justify-center items-center h-40 lg:h-60">
               <div
-                class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+                class="loader w-[32px] lg:w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
               ></div>
             </div>
 
-            <div v-else class="space-y-3 min-h-0">
+            <div v-else class="space-y-2 lg:space-y-3 min-h-0">
               <!-- Messages -->
               <div
                 v-for="m in messages"
@@ -827,17 +904,17 @@ watch(search, () => {
               >
                 <div
                   :class="[
-                    'max-w-[75%] px-4 py-3 rounded-2xl shadow-md transition-all hover:shadow-lg',
+                    'max-w-[85%] lg:max-w-[75%] px-3 lg:px-4 py-2 lg:py-3 rounded-2xl shadow break-words min-w-0',
                     m.sender_type === 'admin'
                       ? 'bg-gradient-to-br from-teal-500 to-teal-600 text-white'
                       : 'bg-white text-gray-900 border border-gray-200',
                     m.pending ? 'opacity-70' : '',
                   ]"
                 >
-                  <p class="text-sm leading-relaxed break-words">{{ m.message }}</p>
+                  <p class="text-xs lg:text-sm leading-relaxed break-words">{{ m.message }}</p>
                   <p
                     :class="[
-                      'text-xs mt-2 flex items-center gap-1',
+                      'text-xs mt-1 lg:mt-2 flex items-center gap-1',
                       m.sender_type === 'admin' ? 'text-teal-100' : 'text-gray-500',
                     ]"
                   >
@@ -846,19 +923,21 @@ watch(search, () => {
                   </p>
                 </div>
               </div>
-              <div v-if="isCurrentUserTyping" class="flex justify-start mb-3">
-                <div class="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
-                  <div class="flex gap-1.5">
+              <div v-if="isCurrentUserTyping" class="flex justify-start mb-2 lg:mb-3">
+                <div
+                  class="bg-white border border-gray-200 rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shadow-sm"
+                >
+                  <div class="flex gap-1">
                     <span
-                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
                       style="animation-delay: 0ms"
                     ></span>
                     <span
-                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
                       style="animation-delay: 150ms"
                     ></span>
                     <span
-                      class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
                       style="animation-delay: 300ms"
                     ></span>
                   </div>
@@ -868,25 +947,25 @@ watch(search, () => {
           </div>
         </section>
 
-        <footer class="px-6 py-4 border-t bg-white">
-          <div class="flex gap-3">
+        <footer class="px-4 lg:px-6 py-3 lg:py-4 border-t bg-white">
+          <div class="flex flex-col sm:flex-row gap-2 lg:gap-3">
             <input
               v-model="newMessage"
               @input="handleInputChange"
               @keyup.enter="sendMessage"
               :disabled="!selectedSession || sending"
               placeholder="Type your message..."
-              class="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 px-3 lg:px-4 py-2 lg:py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base"
             />
 
             <button
               @click="sendMessage"
               :disabled="!selectedSession || !newMessage.trim() || sending"
-              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2 whitespace-nowrap"
+              class="w-full sm:w-auto px-4 lg:px-6 py-2.5 lg:py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow hover:shadow-lg flex items-center justify-center gap-2 whitespace-nowrap text-sm lg:text-base"
             >
               <svg
                 v-if="!sending"
-                class="w-5 h-5"
+                class="w-4 h-4 lg:w-5 lg:h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -900,7 +979,7 @@ watch(search, () => {
               </svg>
               <div
                 v-else
-                class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
+                class="w-4 h-4 lg:w-5 lg:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
               ></div>
               <span>{{ sending ? 'Sending...' : 'Send' }}</span>
             </button>

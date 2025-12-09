@@ -21,7 +21,7 @@ const touched = ref(false)
 const userId = computed(() => adminStore.userInfo?.userId)
 
 onMounted(() => {
-  console.log('User ID:', userId.value)
+  // console.log('User ID:', userId.value)
 })
 
 const userData = reactive({
@@ -66,19 +66,19 @@ const loginForm = async () => {
 </script>
 
 <template>
-  <div class="bg-gray-50 flex items-center justify-center p-4 min-h-screen">
+  <div class="bg-gray-50 flex items-center justify-center p-4 min-h-screen sm:p-4 p-3">
     <div class="w-full max-w-lg h-[60vh] overflow-y-auto">
-      <div class="bg-white rounded-lg border shadow-sm border-gray-200 p-6">
-        <div class="flex justify-between items-center mb-6">
-          <div>
-            <h2 class="text-xl font-semibold text-gray-900">Login</h2>
-            <p class="text-sm text-gray-500 mt-0.5">
+      <div class="bg-white rounded-lg border shadow-sm border-gray-200 sm:p-6 p-4">
+        <div class="flex justify-between items-start mb-6 gap-3">
+          <div class="flex-1 min-w-0">
+            <h2 class="sm:text-xl text-lg font-semibold text-gray-900">Login</h2>
+            <p class="sm:text-sm text-xs text-gray-500 mt-0.5">
               Enter your credentials to access your account
             </p>
           </div>
           <RouterLink
             :to="{ name: 'signup' }"
-            class="bg-gray-900 w-[100px] h-[38px] flex items-center justify-center text-white font-semibold rounded-[20px] transition-all duration-300 hover:bg-gray-950 hover:-translate-y-0.5 shadow-md hover:shadow-lg"
+            class="bg-gray-900 sm:w-[100px] w-20 sm:h-[38px] h-9 flex items-center justify-center text-white font-semibold rounded-[20px] transition-all duration-300 hover:bg-gray-950 hover:-translate-y-0.5 shadow-md hover:shadow-lg sm:text-sm text-xs flex-shrink-0"
           >
             Sign Up
           </RouterLink>
@@ -86,13 +86,13 @@ const loginForm = async () => {
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1">Email *</label>
             <input
               type="email"
               v-model="userData.email"
               @input="v$.email.$touch()"
               @blur="v$.email.$touch()"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             />
             <p v-if="v$.email.$error" class="text-xs text-red-500 mt-1">
               {{ v$.email.$errors[0]?.$message }}
@@ -100,18 +100,20 @@ const loginForm = async () => {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+              >Password *</label
+            >
             <div class="relative">
               <input
                 :type="showPassword ? 'text' : 'password'"
                 v-model="userData.password"
                 @input="(v$.password.$touch(), (touched = true))"
                 @blur="(v$.password.$touch(), (touched = true))"
-                class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 pr-10 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
               <button
                 type="button"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 sm:scale-100 scale-110"
                 @click="showPassword = !showPassword"
               >
                 <EyeOpen v-if="!showPassword" />
@@ -124,7 +126,7 @@ const loginForm = async () => {
           </div>
           <RouterLink
             :to="{ name: 'forgetPwd' }"
-            class="flex items-start text-gray-700 font-semibold transition-all duration-300"
+            class="flex items-start text-gray-700 font-semibold transition-all duration-300 sm:text-sm text-xs"
           >
             Forgot Password?
           </RouterLink>
@@ -132,13 +134,13 @@ const loginForm = async () => {
           <button
             :disabled="loading || v$.$invalid"
             @click="loginForm"
-            class="w-full bg-gray-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full bg-gray-900 text-white sm:py-2.5 py-3 rounded-md sm:text-sm text-base font-medium hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Loading v-if="loading" />
             <span v-if="!loading">Login</span>
           </button>
 
-          <p class="text-xs text-center text-gray-500">
+          <p class="text-xs text-center text-gray-500 sm:leading-normal leading-relaxed">
             By logging in, you agree to our Terms and Privacy Policy
           </p>
         </div>

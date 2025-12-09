@@ -29,6 +29,7 @@ const deleteConversation = async () => {
     toast.success('Message deleted!')
     setTimeout(() => {
       emit('confirm')
+      window.location.reload()
     }, 3000)
   } catch (err) {
     console.error(err)

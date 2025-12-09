@@ -120,17 +120,17 @@ const signInForm = async () => {
 </script>
 
 <template>
-  <div class="bg-gray-50 flex items-center justify-center p-4 min-h-screen">
+  <div class="bg-gray-50 flex items-center justify-center p-4 min-h-screen sm:p-4 p-3">
     <div class="w-full max-w-lg h-[90vh] overflow-y-auto">
-      <div class="bg-white rounded-lg border shadow-sm border-gray-200 p-6">
-        <div class="flex justify-between items-center mb-6">
-          <div>
-            <h2 class="text-xl font-semibold text-gray-900">Create Account</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Get started in minutes</p>
+      <div class="bg-white rounded-lg border shadow-sm border-gray-200 sm:p-6 p-4">
+        <div class="flex justify-between items-start mb-6 gap-3">
+          <div class="flex-1 min-w-0">
+            <h2 class="sm:text-xl text-lg font-semibold text-gray-900">Create Account</h2>
+            <p class="sm:text-sm text-xs text-gray-500 mt-0.5">Get started in minutes</p>
           </div>
           <RouterLink
             :to="{ name: 'login' }"
-            class="bg-gray-900 w-[100px] h-[38px] flex items-center justify-center text-white font-semibold rounded-[20px] transition-all duration-300 hover:bg-gray-950 hover:-translate-y-0.5 shadow-md hover:shadow-lg"
+            class="bg-gray-900 sm:w-[100px] w-20 sm:h-[38px] h-9 flex items-center justify-center text-white font-semibold rounded-[20px] transition-all duration-300 hover:bg-gray-950 hover:-translate-y-0.5 shadow-md hover:shadow-lg sm:text-sm text-xs flex-shrink-0"
           >
             Login
           </RouterLink>
@@ -138,13 +138,15 @@ const signInForm = async () => {
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+              >Full Name *</label
+            >
             <input
               type="text"
               v-model="userData.full_name"
               @input="v$.full_name.$touch()"
               @blur="v$.full_name.$touch()"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             />
             <p v-if="v$.full_name.$error" class="text-xs text-red-500 mt-1">
               {{ v$.full_name.$errors[0].$message }}
@@ -152,85 +154,91 @@ const signInForm = async () => {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1">Email *</label>
             <input
               type="email"
               v-model="userData.email"
               @input="v$.email.$touch()"
               @blur="v$.email.$touch()"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             />
             <p v-if="v$.email.$error" class="text-xs text-red-500 mt-1">
               {{ v$.email.$errors[0]?.$message }}
             </p>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="sm:grid sm:grid-cols-2 sm:gap-3 space-y-4 sm:space-y-0">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1">Phone</label>
               <input
                 type="text"
                 v-model="userData.phone_number"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+              <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+                >Business Name</label
+              >
               <input
                 type="text"
                 v-model="userData.business_name"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="sm:grid sm:grid-cols-2 sm:gap-3 space-y-4 sm:space-y-0">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+              <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1">Website</label>
               <input
                 type="text"
                 v-model="userData.website"
                 @input="v$.website.$touch()"
                 @blur="v$.website.$touch()"
                 placeholder="Enter website name"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
               <p v-if="v$.website.$error" class="text-xs text-red-500 mt-1">
                 {{ v$.website.$errors[0]?.$message }}
               </p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Business Category</label>
+              <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+                >Business Category</label
+              >
               <input
                 type="text"
                 v-model="userData.category"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1">Address</label>
             <input
               type="text"
               v-model="userData.full_address"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+              >Password *</label
+            >
             <div class="relative">
               <input
                 :type="showPwd ? 'text' : 'password'"
                 v-model="userData.password"
                 @input="(v$.password.$touch(), (touched = true))"
                 @blur="(v$.password.$touch(), (touched = true))"
-                class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 pr-10 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
               <button
                 type="button"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 sm:scale-100 scale-110"
                 @click="showPwd = !showPwd"
               >
                 <EyeOpen v-if="!showPwd" />
@@ -243,18 +251,20 @@ const signInForm = async () => {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <label class="block sm:text-sm text-xs font-medium text-gray-700 mb-1"
+              >Confirm Password</label
+            >
             <div class="relative">
               <input
                 :type="showPwd ? 'text' : 'password'"
                 v-model="userData.cpassword"
                 @input="(v$.cpassword.$touch(), (touched = true))"
                 @blur="(v$.cpassword.$touch(), (touched = true))"
-                class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                class="w-full sm:px-3 px-2.5 sm:py-2 py-2.5 pr-10 border border-gray-300 rounded-md sm:text-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
               <button
                 type="button"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 sm:scale-100 scale-110"
                 @click="showPwd = !showPwd"
               >
                 <EyeOpen v-if="!showPwd" />
@@ -269,7 +279,7 @@ const signInForm = async () => {
           <button
             :disabled="loading || v$.$invalid"
             @click="signInForm"
-            class="w-full bg-gray-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full bg-gray-900 text-white sm:py-2.5 py-3 rounded-md sm:text-sm text-base font-medium hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Loading v-if="loading" />
             <span v-if="!loading">Sign Up</span>
@@ -281,7 +291,10 @@ const signInForm = async () => {
               type="checkbox"
               class="h-4 w-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
             />
-            <label for="terms" class="text-xs text-gray-500 select-none">
+            <label
+              for="terms"
+              class="text-xs text-gray-500 select-none sm:leading-normal leading-relaxed"
+            >
               By signing up, you agree to our Terms and Privacy Policy.
             </label>
           </div>

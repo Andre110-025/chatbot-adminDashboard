@@ -19,7 +19,7 @@ const customization = reactive({
   bubblewidth: 600,
   borderraduis: 16,
   showavartar: true,
-  avartar: 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+  avartar: 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969',
 })
 
 watch(
@@ -43,20 +43,20 @@ watch(
         },
       })
       console.log('API Response:', response)
-      if (response.status === 200 && response.data.settings) {
+      if (response.status === 200 && response.data.Settings && response.data.Settings.length > 0) {
+        const settings = response.data.Settings[0]
         console.log('Settings found:', response.data.settings)
         Object.assign(customization, {
-          primarycolor: response.data.settings.primarycolor || '#10b981',
-          secondarycolor: response.data.settings.secondarycolor || '#059669',
-          bubblesize: response.data.settings.bubblesize || 64,
-          position: response.data.settings.position || 'bottom-right',
-          popupwidth: response.data.settings.popupwidth || 400,
-          bubblewidth: response.data.settings.bubblewidth || 600,
-          borderraduis: response.data.settings.borderraduis || 16,
-          showavartar: response.data.settings.avartar || true,
+          primarycolor: settings.primarycolor || '#10b981',
+          secondarycolor: settings.secondarycolor || '#059669',
+          bubblesize: parseInt(settings.bubblesize) || 64, // Convert to number
+          position: settings.position || 'bottom-right',
+          popupwidth: parseInt(settings.popupwidth) || 400, // Convert to number
+          bubblewidth: parseInt(settings.bubblewidth) || 600, // Convert to number
+          borderraduis: parseInt(settings.borderraduis) || 16, // Convert to number
+          showavartar: settings.showavartar === 'true' || settings.showavartar === true || true,
           avartar:
-            response.data.settings.avartar ||
-            'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+            settings.avartar || 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969',
         })
 
         const savedAvatar = avatarOptions.value.find((a) => a.url === customization.avartar)
@@ -71,7 +71,6 @@ watch(
       loading.value = false
     }
   },
-  { immediate: true },
 )
 
 const positions = [
@@ -93,9 +92,6 @@ const validateColor = () => {
   if (!hexRegex.test(customization.secondarycolor)) {
     customization.secondarycolor = '#059669'
   }
-  if (!hexRegex.test(customization.textColor)) {
-    customization.textColor = '#ffffff'
-  }
 }
 
 const resetCustomization = () => {
@@ -109,7 +105,7 @@ const resetCustomization = () => {
     bubblewidth: 600,
     borderraduis: 16,
     showavartar: true,
-    avartar: 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+    avartar: 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969',
   })
 }
 
@@ -141,103 +137,103 @@ const saveCustomization = async () => {
 }
 
 const avatarOptions = ref([
-  // BOT AVATARS
+  // BOT AVATARS - Using Iconify bot icons
   {
     id: 'ai_bot',
-    name: 'AI Bot',
-    url: 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+    name: 'AI Assistant',
+    url: 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969',
     type: 'bot',
   },
   {
     id: 'robot1',
-    name: 'Robot 1',
-    url: 'https://cdn-icons-png.flaticon.com/512/4712/4712035.png',
+    name: 'Robot',
+    url: 'https://api.iconify.design/ri:robot-fill.svg?color=%23005969',
     type: 'bot',
   },
   {
-    id: 'robot2',
-    name: 'Robot 2',
-    url: 'https://cdn-icons-png.flaticon.com/512/4712/4712029.png',
+    id: 'bot_chat',
+    name: 'Chat Bot',
+    url: 'https://api.iconify.design/ri:chatbot-fill.svg?color=%23005969',
     type: 'bot',
   },
   {
-    id: 'bot_blue',
-    name: 'Blue Bot',
-    url: 'https://cdn-icons-png.flaticon.com/512/2204/2204714.png',
+    id: 'bot_smart',
+    name: 'Smart Bot',
+    url: 'https://api.iconify.design/ri:android-fill.svg?color=%23005969',
     type: 'bot',
   },
   {
-    id: 'bot_purple',
-    name: 'Purple Bot',
-    url: 'https://cdn-icons-png.flaticon.com/512/4712/4712009.png',
+    id: 'bot_ai',
+    name: 'AI Brain',
+    url: 'https://api.iconify.design/ri:brain-fill.svg?color=%23005969',
     type: 'bot',
   },
   {
-    id: 'bot_green',
-    name: 'Green Bot',
-    url: 'https://cdn-icons-png.flaticon.com/512/4712/4712026.png',
+    id: 'bot_cpu',
+    name: 'CPU Bot',
+    url: 'https://api.iconify.design/ri:cpu-fill.svg?color=%23005969',
     type: 'bot',
   },
 
-  // HUMAN AVATARS
+  // HUMAN AVATARS - Using Iconify human icons
   {
     id: 'agent_male',
     name: 'Male Agent',
-    url: 'https://cdn-icons-png.flaticon.com/512/4333/4333609.png',
+    url: 'https://api.iconify.design/ri:user-3-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'agent_female',
     name: 'Female Agent',
-    url: 'https://cdn-icons-png.flaticon.com/512/4323/4323003.png',
+    url: 'https://api.iconify.design/ri:user-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'support_male',
-    name: 'Support Guy',
-    url: 'https://cdn-icons-png.flaticon.com/512/4333/4333615.png',
+    name: 'Support Agent',
+    url: 'https://api.iconify.design/ri:customer-service-2-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'support_female',
-    name: 'Support Girl',
-    url: 'https://cdn-icons-png.flaticon.com/512/4323/4323004.png',
+    name: 'Help Desk',
+    url: 'https://api.iconify.design/ri:customer-service-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'business_man',
-    name: 'Business Man',
-    url: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png',
+    name: 'Business',
+    url: 'https://api.iconify.design/ri:user-5-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'business_woman',
-    name: 'Business Woman',
-    url: 'https://cdn-icons-png.flaticon.com/512/4140/4140051.png',
+    name: 'Executive',
+    url: 'https://api.iconify.design/ri:user-4-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'tech_support',
     name: 'Tech Support',
-    url: 'https://cdn-icons-png.flaticon.com/512/4333/4333607.png',
+    url: 'https://api.iconify.design/ri:computer-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'customer_service',
     name: 'Customer Service',
-    url: 'https://cdn-icons-png.flaticon.com/512/4333/4333608.png',
+    url: 'https://api.iconify.design/ri:service-fill.svg?color=%23005969',
     type: 'human',
   },
   {
     id: 'assistant',
     name: 'Assistant',
-    url: 'https://cdn-icons-png.flaticon.com/512/4140/4140047.png',
+    url: 'https://api.iconify.design/ri:user-star-fill.svg?color=%23005969',
     type: 'human',
   },
   {
-    id: 'friendly_bot',
-    name: 'Friendly Bot',
-    url: 'https://cdn-icons-png.flaticon.com/512/2593/2593788.png',
+    id: 'message_bot',
+    name: 'Message Bot',
+    url: 'https://api.iconify.design/ri:message-2-fill.svg?color=%23005969',
     type: 'bot',
   },
 ])
@@ -262,14 +258,14 @@ const currentAvatar = computed(() => {
 
 // This is what gets sent to backend
 const currentAvatarUrl = computed(() => {
-  return customization.avartar || 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png'
+  return customization.avartar || 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969'
 })
 </script>
 
 <template>
   <div class="p-6 bg-white shadow rounded-lg">
-    <div class="flex flex-row justify-between items-center">
-      <h2 class="text-3xl font-semibold mb-6">Chatbot Appearance</h2>
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+      <h2 class="text-2xl sm:text-3xl font-semibold">Chatbot Appearance</h2>
       <Filter v-model:website="selectedWebsite" v-model:apikey="selectedApikey" />
     </div>
 
@@ -277,6 +273,11 @@ const currentAvatarUrl = computed(() => {
     <div v-if="loading" class="text-center py-4">
       <Loading class="w-6 h-6 mx-auto" />
       <p class="text-sm text-gray-500 mt-2">Loading settings...</p>
+      <div class="flex justify-center items-center h-60">
+        <div
+          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+        ></div>
+      </div>
     </div>
 
     <div v-else class="flex flex-col lg:flex-row gap-6">
@@ -302,8 +303,8 @@ const currentAvatarUrl = computed(() => {
             </p>
           </div>
 
-          <!-- Avatar Options -->
-          <div class="grid grid-cols-3 gap-2">
+          <!-- Fixed: 2 columns on mobile, 3 on tablet+ -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               v-for="avatar in avatarOptions"
               :key="avatar.id"
@@ -325,16 +326,16 @@ const currentAvatarUrl = computed(() => {
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
-              <div class="flex items-center gap-4">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-4">
                 <input
                   type="color"
                   v-model="customization.primarycolor"
-                  class="w-12 h-12 cursor-pointer rounded border"
+                  class="w-12 h-12 cursor-pointer rounded border mx-auto sm:mx-0"
                 />
                 <input
                   type="text"
                   v-model="customization.primarycolor"
-                  class="flex-1 px-3 py-2 border rounded-md font-mono"
+                  class="flex-1 px-3 py-2 border rounded-md font-mono text-sm sm:text-base"
                   @change="validateColor"
                 />
               </div>
@@ -342,16 +343,16 @@ const currentAvatarUrl = computed(() => {
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
-              <div class="flex items-center gap-4">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-4">
                 <input
                   type="color"
                   v-model="customization.secondarycolor"
-                  class="w-12 h-12 cursor-pointer rounded border"
+                  class="w-12 h-12 cursor-pointer rounded border mx-auto sm:mx-0"
                 />
                 <input
                   type="text"
                   v-model="customization.secondarycolor"
-                  class="flex-1 px-3 py-2 border rounded-md font-mono"
+                  class="flex-1 px-3 py-2 border rounded-md font-mono text-sm sm:text-base"
                   @change="validateColor"
                 />
               </div>
@@ -377,7 +378,8 @@ const currentAvatarUrl = computed(() => {
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-              <div class="grid grid-cols-2 gap-2">
+              <!-- Fixed: 1 column on mobile, 2 on tablet+ -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   v-for="pos in positions"
                   :key="pos.value"
@@ -399,7 +401,7 @@ const currentAvatarUrl = computed(() => {
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Chat Width</label>
-              <div class="flex items-center gap-4">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <input
                   type="range"
                   v-model="customization.popupwidth"
@@ -407,13 +409,15 @@ const currentAvatarUrl = computed(() => {
                   max="500"
                   class="flex-1"
                 />
-                <span class="text-sm font-mono">{{ customization.popupwidth }}px</span>
+                <span class="text-sm font-mono text-center sm:text-left"
+                  >{{ customization.popupwidth }}px</span
+                >
               </div>
             </div>
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Chat Height</label>
-              <div class="flex items-center gap-4">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <input
                   type="range"
                   v-model="customization.bubblewidth"
@@ -421,7 +425,9 @@ const currentAvatarUrl = computed(() => {
                   max="700"
                   class="flex-1"
                 />
-                <span class="text-sm font-mono">{{ customization.bubblewidth }}px</span>
+                <span class="text-sm font-mono text-center sm:text-left"
+                  >{{ customization.bubblewidth }}px</span
+                >
               </div>
             </div>
 
@@ -452,7 +458,7 @@ const currentAvatarUrl = computed(() => {
         </div>
 
         <!-- Save/Reset Buttons -->
-        <div class="flex gap-3">
+        <div class="flex flex-col sm:flex-row gap-3">
           <button
             @click="resetCustomization"
             class="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -464,8 +470,8 @@ const currentAvatarUrl = computed(() => {
             :disabled="loading"
             class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Loading v-if="loading" class="w-4 h-4" />
-            <span v-if="!loading">Save Changes</span>
+            <Loading v-if="loading" class="w-4 h-4 inline mr-2" />
+            <span>Save Changes</span>
           </button>
         </div>
       </div>
@@ -475,17 +481,22 @@ const currentAvatarUrl = computed(() => {
         <div class="border rounded-lg p-4">
           <h3 class="text-lg font-medium mb-4">Live Preview</h3>
 
-          <div class="border rounded-lg bg-gray-50 p-4 min-h-[500px] relative">
-            <div class="bg-white rounded p-4 mb-4 shadow-sm">
-              <p>Welcome to your chat</p>
-            </div>
+          <div
+            class="border rounded-lg bg-gray-50 p-4 min-h-[400px] md:min-h-[500px] relative overflow-hidden"
+          >
+            <!-- Chat bubble container with responsive positioning -->
             <div
-              class="absolute transition-all duration-300"
-              :class="positionClasses[customization.position]"
+              class="absolute transition-all duration-300 z-10"
+              :class="[
+                positionClasses[customization.position],
+                'sm:scale-100 scale-75', // Scale down more on mobile
+              ]"
+              style="touch-action: manipulation"
             >
-              <!-- Chat Bubble -->
+              <!-- Chat Bubble - make it clickable -->
               <div
-                class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105"
+                @click="showPreviewWindow = !showPreviewWindow"
+                class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105 active:scale-95"
                 :style="{
                   width: customization.bubblesize + 'px',
                   height: customization.bubblesize + 'px',
@@ -506,83 +517,85 @@ const currentAvatarUrl = computed(() => {
                 v-if="showPreviewWindow"
                 class="absolute bottom-full mb-4 right-0 rounded-lg shadow-xl overflow-hidden transition-all duration-300"
                 :style="{
-                  width: customization.popupwidth + 'px',
-                  height: customization.bubblewidth + 'px',
+                  width: `min(${customization.popupwidth}px, 85vw)`, // Slightly smaller on mobile
+                  height: `min(${customization.bubblewidth}px, 50vh)`, // Smaller height on mobile
                   backgroundColor: 'white',
                   borderRadius: customization.borderraduis + 'px',
                   border: `1px solid ${customization.secondarycolor}20`,
+                  maxWidth: '100%',
+                  zIndex: 20,
                 }"
               >
                 <!-- Header -->
                 <div
-                  class="p-4"
+                  class="p-3 sm:p-4"
                   :style="{
                     backgroundColor: customization.primarycolor,
                     color: 'white',
                   }"
                 >
                   <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 sm:gap-3">
                       <div
                         v-if="customization.showavartar"
-                        class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+                        class="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                         :style="{ backgroundColor: customization.secondarycolor }"
                       >
                         <img
                           :src="currentAvatarUrl"
-                          class="w-8 h-8 rounded-full object-cover"
+                          class="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover"
                           alt="Chatbot Avatar"
                         />
                       </div>
-                      <div>
-                        <div class="font-semibold">ChatBot</div>
-                        <div class="text-sm opacity-90">Online • Ready to help</div>
+                      <div class="min-w-0">
+                        <div class="font-semibold text-sm sm:text-base truncate">ChatBot</div>
+                        <div class="text-xs opacity-90">Online • Ready to help</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <!-- Messages -->
-                <div class="p-4 flex-1 overflow-hidden h-[calc(100%-140px)]">
-                  <div class="space-y-3">
+                <div class="p-3 sm:p-4 flex-1 overflow-hidden h-[calc(100%-120px)]">
+                  <div class="space-y-2 sm:space-y-3">
                     <!-- Bot Message -->
                     <div class="flex gap-2">
                       <div
                         v-if="customization.showavartar"
-                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                        class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
                         :style="{ backgroundColor: customization.primarycolor }"
                       >
                         <img
                           :src="currentAvatarUrl"
-                          class="w-6 h-6 rounded-full object-cover"
+                          class="w-4 h-4 sm:w-6 sm:h-6 rounded-full object-cover"
                           alt="Bot"
                         />
                       </div>
                       <div
-                        class="rounded-2xl px-4 py-3 max-w-[80%]"
+                        class="rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[75%]"
                         :style="{
                           backgroundColor: customization.secondarycolor + '20',
                           color: '#333',
                         }"
                       >
-                        <div class="text-sm">Hello! How can I help you today?</div>
+                        <div class="text-xs sm:text-sm">Hello! How can I help you today?</div>
                       </div>
                     </div>
 
                     <!-- User Message -->
                     <div class="flex gap-2 justify-end">
                       <div
-                        class="rounded-2xl px-4 py-3 max-w-[80%]"
+                        class="rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[75%]"
                         :style="{
                           backgroundColor: customization.primarycolor,
                           color: 'white',
                         }"
                       >
-                        <div class="text-sm">I need help with my order</div>
+                        <div class="text-xs sm:text-sm">I need help with my order</div>
                       </div>
                       <div
                         v-if="customization.showavartar"
-                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden bg-gray-300"
+                        class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden bg-gray-300"
                       >
                         <div class="text-xs font-bold">U</div>
                       </div>
@@ -591,22 +604,22 @@ const currentAvatarUrl = computed(() => {
                 </div>
 
                 <!-- Input -->
-                <div class="p-3 border-t">
+                <div class="p-2 sm:p-3 border-t">
                   <div class="flex gap-2">
                     <input
                       type="text"
                       placeholder="Type your message..."
-                      class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2"
+                      class="flex-1 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border focus:outline-none focus:ring-2 text-xs sm:text-sm"
                       :style="{
                         borderColor: customization.secondarycolor + '50',
                         '--tw-ring-color': customization.primarycolor + '30',
                       }"
                     />
                     <button
-                      class="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                      class="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white flex-shrink-0"
                       :style="{ backgroundColor: customization.primarycolor }"
                     >
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
                       </svg>
                     </button>
@@ -615,14 +628,27 @@ const currentAvatarUrl = computed(() => {
               </div>
             </div>
 
-            <!-- Toggle Preview Button -->
-            <div class="absolute bottom-4 left-4">
-              <button
-                @click="showPreviewWindow = !showPreviewWindow"
-                class="px-4 py-2 bg-white border rounded-md shadow-sm hover:bg-gray-50 text-sm"
-              >
-                {{ showPreviewWindow ? 'Hide Chat Window' : 'Show Chat Window' }}
-              </button>
+            <!-- Mobile Controls (simplified) -->
+            <div class="absolute bottom-4 left-0 right-0 px-4">
+              <div class="flex flex-col gap-2">
+                <!-- Toggle button - simplified -->
+                <button
+                  @click="showPreviewWindow = !showPreviewWindow"
+                  class="w-full sm:w-auto px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-medium transition-colors mx-auto sm:mx-0"
+                >
+                  {{ showPreviewWindow ? 'Hide Chat Window' : 'Show Chat Window' }}
+                </button>
+
+                <!-- Simple mobile hint - only show when needed -->
+                <div v-if="!showPreviewWindow" class="sm:hidden text-center">
+                  <p class="text-xs text-gray-500">Tap the bubble or button above to preview</p>
+                </div>
+
+                <!-- Close hint - only show when window is open -->
+                <div v-if="showPreviewWindow" class="sm:hidden text-center">
+                  <p class="text-xs text-gray-500">Tap the bubble again to close</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

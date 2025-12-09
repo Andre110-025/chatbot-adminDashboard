@@ -183,33 +183,40 @@ onMounted(() => {
 
 <template>
   <main class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-    <div class="flex flex-wrap lg:flex-nowrap gap-6 w-full">
+    <div class="flex flex-col lg:flex-row gap-6 w-full">
       <div
-        class="flex flex-row items-center flex-1 min-w-[300px] h-[190px] shadow-sm bg-white rounded-lg overflow-hidden"
+        class="w-full mx-auto flex flex-col min-[1024px]:flex-row items-center bg-white shadow-sm rounded-lg p-6 gap-6"
       >
-        <div class="flex flex-col p-6 flex-1 gap-3">
-          <h2 class="text-lg text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
+        <div class="flex flex-col flex-1 gap-3 text-center min-[1024px]:text-left">
+          <h2 class="text-xl text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
+
           <p class="text-sm text-gray-600 leading-relaxed">
             Your platform is running smoothly today.<br />
             Check key stats to stay on top of performance.
           </p>
-          <RouterLink
-            :to="{ name: 'chatreview' }"
-            class="w-[110px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 transition"
-          >
-            View Chat
-          </RouterLink>
+
+          <div class="flex justify-center min-[1024px]:justify-start">
+            <RouterLink
+              :to="{ name: 'chatreview' }"
+              class="mt-2 w-[120px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 transition"
+            >
+              View Chat
+            </RouterLink>
+          </div>
         </div>
-        <div class="ml-auto h-full flex items-end">
-          <Illustration />
+
+        <div class="flex justify-center min-[1024px]:justify-end">
+          <div class="max-w-[160px] xl:max-w-[200px]">
+            <Illustration />
+          </div>
         </div>
       </div>
 
-      <div class="flex flex-row flex-wrap justify-between gap-5 min-w-[350px]">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
         <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp w-full"
         >
-          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+          <div v-if="loading" class="flex justify-center items-center h-[139px]">
             <div
               class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
             ></div>
@@ -225,25 +232,29 @@ onMounted(() => {
 
               <p class="text-gray-500 text-sm mb-1">Total Users</p>
               <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
+
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{ Object.keys(allChats).length }}
+              </h2>
 
               <p class="text-xs text-gray-400 mt-2">Across all sources</p>
             </div>
           </div>
 
-          <div v-else class="w-[155px]">
+          <div v-else>
             <NoUserFound />
           </div>
         </div>
 
         <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition w-full"
         >
-          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+          <div v-if="loading" class="flex justify-center items-center h-[139px]">
             <div
               class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
             ></div>
           </div>
+
           <div v-else-if="Object.values(allMessages).flat().length" class="animate-fadeUp">
             <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
               <div
@@ -254,6 +265,7 @@ onMounted(() => {
 
               <p class="text-gray-500 text-sm mb-1">Total Messages</p>
               <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+
               <h2 class="text-2xl font-bold text-gray-800">
                 {{ totalMessageCount }}
               </h2>
@@ -261,12 +273,14 @@ onMounted(() => {
               <p class="text-xs text-gray-400 mt-2">Across all sources</p>
             </div>
           </div>
-          <div v-else class="w-[155px]">
+
+          <div v-else>
             <NoMessageFound />
           </div>
         </div>
       </div>
     </div>
+
     <div class="w-full flex items-center justify-end mt-2 mb-1">
       <div class="flex items-center gap-3">
         <Filter v-model:website="selectedWebsite" />
@@ -274,140 +288,13 @@ onMounted(() => {
     </div>
 
     <section class="w-full mt-4 space-y-6">
-      <!-- <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-40">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-
-          <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <UserIcon />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Total Users</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-
-          <div v-else>
-            <NoUserFound />
-          </div>
-        </div>
-
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-40">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-          <div v-else-if="Object.values(allChats).flat().length" class="animate-fadeUp">
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <Message />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Total Messages</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{ Object.values(allMessages).length }}
-              </h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-          <div v-else>
-            <NoMessageFound />
-          </div>
-        </div>
-
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-40">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-          <div v-else-if="Object.values(allChats).filter((chats) => chats.length > 0).length">
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <ActiveUser />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Active Users</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{ Object.values(allChats).filter((chats) => chats.length > 0).length }}
-              </h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-          <div v-else>
-            <NoActiveUser />
-          </div>
-        </div>
-
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-40">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-
-          <div
-            v-else-if="Object.entries(allChats).sort((a, b) => b[1].length - a[1].length)[0]?.[0]"
-          >
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <ActiveUser />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Most Active User</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{
-                  Object.entries(allChats).sort((a, b) => b[1].length - a[1].length)[0]?.[0] ||
-                  'N/A'
-                }}
-              </h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-          <div v-else>
-            <NoMostActive />
-          </div>
-        </div>
-      </div> -->
-
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div
           class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
         >
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
+
             <button
               @click="getAllUser"
               class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
@@ -421,6 +308,7 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- RECENT CONVERSATIONS -->
         <div
           class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
         >
@@ -441,14 +329,17 @@ onMounted(() => {
               >
                 <div class="flex justify-between items-center">
                   <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
-                  <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
+
+                  <span class="text-xs text-gray-400"> {{ recent.message.length }} msgs </span>
                 </div>
+
                 <p class="text-sm text-mainColor truncate mt-1">
                   {{ recent.message }}
                 </p>
               </div>
             </div>
           </div>
+
           <div v-else>
             <EmptyNoMessage />
           </div>

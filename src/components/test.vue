@@ -739,3 +739,615 @@ li:hover .bg-red-50\/60 {
   background-color: rgba(254, 226, 226, 0.8) !important;
 }
 </style>
+
+<script setup>
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import axios from 'axios'
+import { VueFinalModal } from 'vue-final-modal'
+import Cancel from './Icons/Cancel.vue'
+import Reload from './Icons/Reload.vue'
+import SendBtn from './Icons/SendBtn.vue'
+
+const emit = defineEmits(['close', 'send'])
+const props = defineProps({
+  session: Object,
+  messages: Array,
+  website: String,
+  loading: Boolean,
+  sending: Boolean,
+  newMessage: String,
+  formatTime: Function,
+  onTypingStart: Function,
+  onTypingStop: Function,
+  getConnectionStatus: Function,
+  getTypingStatus: Function,
+})
+
+console.log('ExpendedChat props:', props.website)
+
+const internalMessage = ref('')
+const typingTimeout = ref(null)
+
+// Create computed properties for reactive values
+const connectionStatus = computed(() => props.getConnectionStatus?.() || {})
+const isTyping = computed(() => props.getTypingStatus?.() || false)
+
+watch(
+  () => props.newMessage,
+  (val) => {
+    internalMessage.value = val
+  },
+  { immediate: true },
+)
+
+const handleSend = () => {
+  if (!internalMessage.value.trim()) return
+
+  // Stop typing indicator
+  props.onTypingStop?.()
+
+  emit('send', internalMessage.value)
+  internalMessage.value = ''
+}
+
+const closeModal = () => {
+  // Make sure typing indicator is stopped
+  props.onTypingStop?.()
+  emit('close')
+}
+
+// Handle typing indicators on input
+const handleInput = () => {
+  // Clear existing timeout
+  if (typingTimeout.value) {
+    clearTimeout(typingTimeout.value)
+  }
+
+  // Start typing
+  props.onTypingStart?.()
+
+  // Set timeout to stop typing after 1 second of inactivity
+  typingTimeout.value = setTimeout(() => {
+    props.onTypingStop?.()
+  }, 1000)
+}
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (typingTimeout.value) {
+    clearTimeout(typingTimeout.value)
+  }
+  // Ensure typing is stopped
+  props.onTypingStop?.()
+})
+
+// Watch for internal message changes to trigger typing
+watch(internalMessage, () => {
+  if (internalMessage.value.trim()) {
+    handleInput()
+  } else {
+    props.onTypingStop?.()
+  }
+})
+</script>
+
+<template>
+  <!-- this is for the dashboard overview -->
+  <main class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+    <div class="flex flex-wrap lg:flex-nowrap gap-6 w-full">
+      <div
+        class="flex flex-row items-center flex-1 min-w-[300px] h-[190px] shadow-sm bg-white rounded-lg overflow-hidden"
+      >
+        <div class="flex flex-col p-6 flex-1 gap-3">
+          <h2 class="text-lg text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Your platform is running smoothly today.<br />
+            Check key stats to stay on top of performance.
+          </p>
+          <RouterLink
+            :to="{ name: 'chatreview' }"
+            class="w-[110px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 transition"
+          >
+            View Chat
+          </RouterLink>
+        </div>
+        <div class="ml-auto h-full flex items-end">
+          <Illustration />
+        </div>
+      </div>
+
+      <div class="flex flex-row flex-wrap justify-between gap-5 min-w-[350px]">
+        <div
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
+        >
+          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+            <div
+              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+            ></div>
+          </div>
+
+          <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <UserIcon />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Total Users</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
+          </div>
+
+          <div v-else class="w-[155px]">
+            <NoUserFound />
+          </div>
+        </div>
+
+        <div
+          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
+        >
+          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
+            <div
+              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+            ></div>
+          </div>
+          <div v-else-if="Object.values(allMessages).flat().length" class="animate-fadeUp">
+            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div
+                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+              >
+                <Message />
+              </div>
+
+              <p class="text-gray-500 text-sm mb-1">Total Messages</p>
+              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+              <h2 class="text-2xl font-bold text-gray-800">
+                {{ totalMessageCount }}
+              </h2>
+
+              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+            </div>
+          </div>
+          <div v-else class="w-[155px]">
+            <NoMessageFound />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="w-full flex items-center justify-end mt-2 mb-1">
+      <div class="flex items-center gap-3">
+        <Filter v-model:website="selectedWebsite" />
+      </div>
+    </div>
+
+    <section class="w-full mt-4 space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div
+          class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
+        >
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
+            <button
+              @click="getAllUser"
+              class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div class="flex justify-center items-center h-[250px]">
+            <canvas ref="userChartRef" class="max-w-[250px]"></canvas>
+          </div>
+        </div>
+
+        <div
+          class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
+        >
+          <div v-if="loading" class="flex justify-center items-center h-40">
+            <div
+              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+            ></div>
+          </div>
+
+          <div v-else-if="allMessages">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Recent Conversations</h2>
+
+            <div class="space-y-4 max-h-[260px] overflow-y-auto">
+              <div
+                v-for="(recent, index) in allMessages.slice(0, 3)"
+                :key="index"
+                class="border-b border-gray-100 pb-3 last:border-0"
+              >
+                <div class="flex justify-between items-center">
+                  <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
+                  <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
+                </div>
+                <p class="text-sm text-mainColor truncate mt-1">
+                  {{ recent.message }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div v-else>
+            <EmptyNoMessage />
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</template>
+
+<template>
+  <!-- this for the settings part -->
+  <div class="p-6 bg-white shadow rounded-lg">
+    <div class="flex flex-row justify-between items-center">
+      <h2 class="text-3xl font-semibold mb-6">Chatbot Appearance</h2>
+      <Filter v-model:website="selectedWebsite" v-model:apikey="selectedApikey" />
+    </div>
+
+    <!-- Loading indicator -->
+    <div v-if="loading" class="text-center py-4">
+      <Loading class="w-6 h-6 mx-auto" />
+      <p class="text-sm text-gray-500 mt-2">Loading settings...</p>
+      <div class="flex justify-center items-center h-60">
+        <div
+          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+        ></div>
+      </div>
+    </div>
+
+    <div v-else class="flex flex-col lg:flex-row gap-6">
+      <!-- Left: Customization Controls -->
+      <div class="lg:w-2/5 space-y-6">
+        <!-- Avatar Selector -->
+        <div class="border rounded-lg p-4">
+          <h3 class="text-lg font-medium mb-3">Chatbot Avatar</h3>
+
+          <!-- Avatar Preview -->
+          <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+            <div class="flex items-center justify-center mb-2">
+              <div class="w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow">
+                <img
+                  :src="currentAvatarUrl"
+                  class="w-full h-full object-cover"
+                  alt="Selected Avatar"
+                />
+              </div>
+            </div>
+            <p class="text-sm text-center text-gray-600">
+              {{ currentAvatar.name || 'AI Bot' }}
+            </p>
+          </div>
+
+          <!-- Avatar Options -->
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="avatar in avatarOptions"
+              :key="avatar.id"
+              @click="selectAvatar(avatar.id)"
+              class="p-2 border rounded hover:bg-gray-50 transition-colors"
+              :class="
+                selectedAvatar === avatar.id ? 'border-teal-500 bg-teal-50' : 'border-gray-200'
+              "
+            >
+              <img :src="avatar.url" class="w-8 h-8 mx-auto rounded" :alt="avatar.name" />
+              <div class="text-xs text-center mt-1 truncate">{{ avatar.name }}</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Color Scheme -->
+        <div class="border rounded-lg p-4">
+          <h3 class="text-lg font-medium mb-3">Color Scheme</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
+              <div class="flex items-center gap-4">
+                <input
+                  type="color"
+                  v-model="customization.primarycolor"
+                  class="w-12 h-12 cursor-pointer rounded border"
+                />
+                <input
+                  type="text"
+                  v-model="customization.primarycolor"
+                  class="flex-1 px-3 py-2 border rounded-md font-mono"
+                  @change="validateColor"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
+              <div class="flex items-center gap-4">
+                <input
+                  type="color"
+                  v-model="customization.secondarycolor"
+                  class="w-12 h-12 cursor-pointer rounded border"
+                />
+                <input
+                  type="text"
+                  v-model="customization.secondarycolor"
+                  class="flex-1 px-3 py-2 border rounded-md font-mono"
+                  @change="validateColor"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bubble Settings -->
+        <div class="border rounded-lg p-4">
+          <h3 class="text-lg font-medium mb-3">Chat Bubble</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Bubble Size</label>
+              <input
+                type="range"
+                v-model="customization.bubblesize"
+                min="48"
+                max="80"
+                class="w-full"
+              />
+              <div class="text-xs text-gray-500 text-center">{{ customization.bubblesize }}px</div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Position</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="pos in positions"
+                  :key="pos.value"
+                  @click="customization.position = pos.value"
+                  class="p-3 border rounded-md text-center hover:bg-gray-50"
+                  :class="customization.position === pos.value ? 'bg-teal-50 border-teal-200' : ''"
+                >
+                  <div class="text-lg mb-1">{{ pos.icon }}</div>
+                  <div class="text-xs">{{ pos.label }}</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Window -->
+        <div class="border rounded-lg p-4">
+          <h3 class="text-lg font-medium mb-3">Chat Window</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Chat Width</label>
+              <div class="flex items-center gap-4">
+                <input
+                  type="range"
+                  v-model="customization.popupwidth"
+                  min="300"
+                  max="500"
+                  class="flex-1"
+                />
+                <span class="text-sm font-mono">{{ customization.popupwidth }}px</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Chat Height</label>
+              <div class="flex items-center gap-4">
+                <input
+                  type="range"
+                  v-model="customization.bubblewidth"
+                  min="400"
+                  max="700"
+                  class="flex-1"
+                />
+                <span class="text-sm font-mono">{{ customization.bubblewidth }}px</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Border Radius</label>
+              <input
+                type="range"
+                v-model="customization.borderraduis"
+                min="0"
+                max="24"
+                class="w-full"
+              />
+              <div class="text-xs text-gray-500 text-center">
+                {{ customization.borderraduis }}px
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">Show Avatar</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="customization.showavartar" class="sr-only peer" />
+                <div
+                  class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"
+                ></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Save/Reset Buttons -->
+        <div class="flex gap-3">
+          <button
+            @click="resetCustomization"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Reset
+          </button>
+          <button
+            @click="saveCustomization"
+            :disabled="loading"
+            class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Loading v-if="loading" class="w-4 h-4" />
+            <span v-if="!loading">Save Changes</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Live Preview -->
+      <div class="lg:w-3/5">
+        <div class="border rounded-lg p-4">
+          <h3 class="text-lg font-medium mb-4">Live Preview</h3>
+
+          <div class="border rounded-lg bg-gray-50 p-4 min-h-[500px] relative">
+            <div class="bg-white rounded p-4 mb-4 shadow-sm">
+              <p>Welcome to your chat</p>
+            </div>
+            <div
+              class="absolute transition-all duration-300"
+              :class="positionClasses[customization.position]"
+            >
+              <!-- Chat Bubble -->
+              <div
+                class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105"
+                :style="{
+                  width: customization.bubblesize + 'px',
+                  height: customization.bubblesize + 'px',
+                  backgroundColor: customization.primarycolor,
+                }"
+              >
+                <div class="w-full h-full flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                      d="M2 22V9q0-.825.588-1.413Q3.175 7 4 7h2V4q0-.825.588-1.413Q7.175 2 8 2h12q.825 0 1.413.587Q22 3.175 22 4v8q0 .825-.587 1.412Q20.825 14 20 14h-2v3q0 .825-.587 1.413Q16.825 19 16 19H5Zm6-10h8V9H8Zm-4 5h12v-3H8q-.825 0-1.412-.588Q6 12.825 6 12V9H4Zm14-5h2V4H8v3h8q.825 0 1.413.587Q18 8.175 18 9Z"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Chat Window Preview -->
+              <div
+                v-if="showPreviewWindow"
+                class="absolute bottom-full mb-4 right-0 rounded-lg shadow-xl overflow-hidden transition-all duration-300"
+                :style="{
+                  width: customization.popupwidth + 'px',
+                  height: customization.bubblewidth + 'px',
+                  backgroundColor: 'white',
+                  borderRadius: customization.borderraduis + 'px',
+                  border: `1px solid ${customization.secondarycolor}20`,
+                }"
+              >
+                <!-- Header -->
+                <div
+                  class="p-4"
+                  :style="{
+                    backgroundColor: customization.primarycolor,
+                    color: 'white',
+                  }"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div
+                        v-if="customization.showavartar"
+                        class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+                        :style="{ backgroundColor: customization.secondarycolor }"
+                      >
+                        <img
+                          :src="currentAvatarUrl"
+                          class="w-8 h-8 rounded-full object-cover"
+                          alt="Chatbot Avatar"
+                        />
+                      </div>
+                      <div>
+                        <div class="font-semibold">ChatBot</div>
+                        <div class="text-sm opacity-90">Online • Ready to help</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Messages -->
+                <div class="p-4 flex-1 overflow-hidden h-[calc(100%-140px)]">
+                  <div class="space-y-3">
+                    <!-- Bot Message -->
+                    <div class="flex gap-2">
+                      <div
+                        v-if="customization.showavartar"
+                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                        :style="{ backgroundColor: customization.primarycolor }"
+                      >
+                        <img
+                          :src="currentAvatarUrl"
+                          class="w-6 h-6 rounded-full object-cover"
+                          alt="Bot"
+                        />
+                      </div>
+                      <div
+                        class="rounded-2xl px-4 py-3 max-w-[80%]"
+                        :style="{
+                          backgroundColor: customization.secondarycolor + '20',
+                          color: '#333',
+                        }"
+                      >
+                        <div class="text-sm">Hello! How can I help you today?</div>
+                      </div>
+                    </div>
+
+                    <!-- User Message -->
+                    <div class="flex gap-2 justify-end">
+                      <div
+                        class="rounded-2xl px-4 py-3 max-w-[80%]"
+                        :style="{
+                          backgroundColor: customization.primarycolor,
+                          color: 'white',
+                        }"
+                      >
+                        <div class="text-sm">I need help with my order</div>
+                      </div>
+                      <div
+                        v-if="customization.showavartar"
+                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden bg-gray-300"
+                      >
+                        <div class="text-xs font-bold">U</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Input -->
+                <div class="p-3 border-t">
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Type your message..."
+                      class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2"
+                      :style="{
+                        borderColor: customization.secondarycolor + '50',
+                        '--tw-ring-color': customization.primarycolor + '30',
+                      }"
+                    />
+                    <button
+                      class="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Toggle Preview Button -->
+            <div class="absolute bottom-4 left-4">
+              <button
+                @click="showPreviewWindow = !showPreviewWindow"
+                class="px-4 py-2 bg-white border rounded-md shadow-sm hover:bg-gray-50 text-sm"
+              >
+                {{ showPreviewWindow ? 'Hide Chat Window' : 'Show Chat Window' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
