@@ -9,7 +9,7 @@ import Logo from './Logo.vue'
   <header
     class="h-[60px] flex flex-row justify-between items-center px-5 shadow bg-white rounded-lg"
   >
-    <Logo class="w-32 h-32" />
+    <Logo class="w-[155px] h-[45px]" />
     <div class="flex flex-row items-center">
       <!-- <Filter /> -->
       <Notification class="text-mainColor w-6 h-6" />

@@ -1,3 +1,3 @@
 <template>
-  <img src="/Logo.ico" />
+  <img src="/convoLoog.ico" />
 </template>

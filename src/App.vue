@@ -13,11 +13,22 @@ router.beforeEach(() => {
   isRouteReady.value = false
 })
 
-router.afterEach(() => {
+router.afterEach((to) => {
+  // Set browser tab title
+  if (to.meta.title) {
+    document.title = to.meta.title + ' — Bot convo'
+  }
+
   setTimeout(() => {
     isRouteReady.value = true
   }, 700)
 })
+
+// router.afterEach(() => {
+//   setTimeout(() => {
+//     isRouteReady.value = true
+//   }, 700)
+// })
 </script>
 
 <template>

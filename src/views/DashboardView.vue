@@ -16,7 +16,7 @@ const isExpanded = ref(false)
         isExpanded ? 'sm:ml-64' : 'sm:ml-[85px]',
       ]"
     >
-      <div class="m-3 space-y-5">
+      <div class="m-3 space-y-5 pb-24 sm:pb-0">
         <TopHeading />
         <RouterView />
       </div>
