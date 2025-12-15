@@ -1,9 +1,34 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import TopHeading from '@/components/TopHeading.vue'
 import SideNavBar from '@/components/SideNavBar.vue'
+import InternetConnection from '@/components/InternetConnection.vue'
 
 const isExpanded = ref(false)
+
+const isBrowserOnline = ref(navigator.onLine)
+
+const checkNetwork = () => {
+  isBrowserOnline.value = navigator.onLine
+}
+
+onMounted(() => {
+  window.addEventListener('online', checkNetwork)
+  window.addEventListener('offline', checkNetwork)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', checkNetwork)
+  window.removeEventListener('offline', checkNetwork)
+})
+
+const reloadPage = () => {
+  checkNetwork()
+
+  if (isBrowserOnline.value) {
+    location.reload()
+  }
+}
 </script>
 
 <template>
@@ -18,7 +43,14 @@ const isExpanded = ref(false)
     >
       <div class="m-3 space-y-5 pb-24 sm:pb-0">
         <TopHeading />
-        <RouterView />
+
+        <main>
+          <InternetConnection v-if="!isBrowserOnline" :reloadPage="reloadPage" />
+
+          <div v-else>
+            <RouterView />
+          </div>
+        </main>
       </div>
     </div>
   </div>

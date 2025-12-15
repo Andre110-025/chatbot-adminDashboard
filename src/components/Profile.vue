@@ -16,7 +16,7 @@ const logoutUser = () => {
   if (loading.value) return
   loading.value = true
 
-  toast.loading('Logging out user...')
+  toast.loading('Logging out admin...')
 
   setTimeout(() => {
     adminStore.logout()
@@ -47,7 +47,7 @@ const logoutUser = () => {
       <button
         @click="logoutUser"
         :disabled="loading"
-        class="w-full px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+        class="w-full px-4 py-2.5 rounded-lg bg-mainColor hover:bg-mainColor text-white font-medium transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
       >
         <Loading v-if="loading" />
         <span class="text-sm font-medium text-white" v-if="!loading">Log Out</span>

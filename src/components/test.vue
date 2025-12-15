@@ -1,13 +1,23 @@
+q
 <script setup>
 import Filter from './Filter.vue'
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import axios from 'axios'
 import { toast } from 'vue3-toastify'
 import Extend from './Icons/Extend.vue'
 import { useModal } from 'vue-final-modal'
 import ExpendedChat from './ExpendedChat.vue'
+import { useAbly } from '../composables/useAbly.js'
+import Search from './Icons/Search.vue'
+import { nanoid } from 'nanoid'
+import { config } from '@/config'
+import Delete from './Icons/Delete.vue'
+import ModalDeleteChat from './ModalDeleteChat.vue'
+import Loading from './Icons/Loading.vue'
+import ConfirmDeleteChat from './ConfirmDeleteChat.vue'
 
 const loading = ref(false)
+const deleting = ref(false)
 const allChats = ref([])
 const selectedWebsite = ref(null)
 const selectedRequest = ref(null)
@@ -17,6 +27,25 @@ const messagesLoading = ref(false)
 const sending = ref(false)
 const newMessage = ref('')
 
+// Initialize Ably
+const {
+  isConnected,
+  initializeAbly,
+  onNewSession,
+  onNewMessage,
+  sendTypingIndicator,
+  onUserTyping,
+  disconnect: disconnectAbly,
+} = useAbly()
+
+// Cleanup functions for Ably subscriptions
+let unsubscribeSession = null
+let unsubscribeMessages = null
+
+const userTypingMap = ref(new Map())
+let typingUnsubscribe = null
+let inputTypingTimeout = null
+
 const getAllUser = async (website) => {
   if (!website) return
   try {
@@ -24,7 +53,7 @@ const getAllUser = async (website) => {
     const response = await axios.get('/chat/admin/sessions', {
       params: { website },
     })
-    console.log(response)
+    console.log('Sessions loaded:', response)
     allChats.value = response.data.data || []
 
     if (allChats.value.length > 0) {
@@ -44,11 +73,149 @@ watch(selectedWebsite, (val) => {
   getAllUser(val)
 })
 
-onMounted(() => {
+// Initialize Ably and set up subscriptions on mount
+onMounted(async () => {
   if (selectedWebsite.value) {
     getAllUser(selectedWebsite.value)
   }
+
+  // Initialize Ably connection
+  const success = await initializeAbly()
+
+  if (success) {
+    // if initialization is successful
+    console.log('Ably initialized successfully')
+
+    // Subscribe to new sessions
+    unsubscribeSession = onNewSession((sessionData) => {
+      console.log('New session received:', sessionData)
+
+      // Check if this session belongs to the selected website
+      if (selectedWebsite.value && sessionData.website === selectedWebsite.value.website) {
+        // Check if session already exists
+        const exists = allChats.value.find((chat) => chat.session_id === sessionData.session_id)
+
+        if (!exists) {
+          // Add new session to the top of the list
+          allChats.value.unshift(sessionData)
+          toast.success('New chat session started!')
+        }
+      }
+    })
+
+    // Subscribe to new messages
+    unsubscribeMessages = onNewMessage((messageData) => {
+      console.log('New message received:', messageData) // Better session ID comparison
+
+      const messageSessionId = String(messageData.session_id).trim()
+      const currentSessionId = selectedSession.value?.session_id
+        ? String(selectedSession.value.session_id).trim()
+        : null
+
+      const isMessageFromUser = messageData.sender_type === 'user'
+      const isCurrentSession = messageSessionId === currentSessionId // Update last message in the chat list (sidebar)
+
+      const chatIndex = allChats.value.findIndex(
+        (chat) => chat.session_id === messageData.session_id,
+      )
+
+      if (chatIndex !== -1) {
+        // Update the last message and timestamp
+        allChats.value[chatIndex].last_message = messageData.message
+        allChats.value[chatIndex].last_message_time = messageData.timestamp // Mark as unread ONLY if message is from user AND it's NOT the current session
+
+        if (isMessageFromUser) {
+          // If it is the current session, mark as read (true). Otherwise, mark as unread (false).
+          allChats.value[chatIndex].is_read_admin = isCurrentSession
+        } // Move this chat to the top
+
+        const [chat] = allChats.value.splice(chatIndex, 1)
+        allChats.value.unshift(chat)
+      } // If this message is for the currently open chat, add it to messages
+
+      if (isCurrentSession) {
+        // Generate unique ID if backend doesn't provide one
+        const messageId =
+          messageData.id ||
+          `${messageData.session_id}-${messageData.timestamp}-${messageData.sender_type}` // Check if message already exists by unique identifier
+
+        const messageExists = messages.value.find((m) => {
+          const existingId =
+            m.id || `${m.session_id || messageSessionId}-${m.timestamp}-${m.sender_type}`
+          return existingId === messageId
+        })
+
+        if (!messageExists) {
+          messages.value.push({
+            id: messageId,
+            message: messageData.message,
+            sender_type: messageData.sender_type,
+            timestamp: messageData.timestamp,
+          })
+
+          nextTick(() => {
+            scrollToBottom()
+          }) // If message is from user, mark as read automatically
+
+          // This also takes care of updating selectedSession.value.is_read_admin
+          if (isMessageFromUser) {
+            markAsRead(selectedSession.value)
+          }
+        } else {
+          console.log('⚠️ Message already exists in current chat, skipping')
+        }
+      } else {
+        console.log('📋 Message is for different session, only updating sidebar')
+        console.log('Current session ID:', currentSessionId)
+        console.log('Message session ID:', messageSessionId) // Show notification for new message in other sessions
+
+        if (isMessageFromUser) {
+          const chat = allChats.value.find((c) => c.session_id === messageData.session_id)
+          toast.info(`New message from ${chat?.user_email || 'user'}`)
+        }
+      }
+    })
+    typingUnsubscribe = onUserTyping((data) => {
+      userTypingMap.value.set(data.session_id, data.is_typing)
+    })
+  } else {
+    console.error('Failed to initialize Ably')
+    toast.error('Real-time connection failed. Messages will not update automatically.')
+  }
 })
+
+const statusText = computed(() => {
+  if (!isConnected.value) {
+    return 'Connecting to real-time updates...'
+  }
+  return 'Online'
+})
+
+// Clean up subscriptions on unmount
+onUnmounted(() => {
+  if (unsubscribeSession) unsubscribeSession()
+  if (unsubscribeMessages) unsubscribeMessages()
+  if (typingUnsubscribe) typingUnsubscribe()
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
+  disconnectAbly()
+})
+
+const isCurrentUserTyping = computed(() => {
+  if (!selectedSession.value) return false
+  return userTypingMap.value.get(selectedSession.value.session_id) || false
+})
+
+const handleInputChange = () => {
+  if (!selectedSession.value) return
+
+  sendTypingIndicator(selectedSession.value.session_id, true)
+
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
+
+  inputTypingTimeout = setTimeout(() => {
+    sendTypingIndicator(selectedSession.value.session_id, false)
+  }, 1000)
+}
 
 const getMessages = async (sessionId) => {
   if (!sessionId) {
@@ -74,10 +241,11 @@ const getMessages = async (sessionId) => {
       params: { website: finalWebsite },
     })
 
-    console.log('Messages:', response.data)
     messages.value = response.data.data?.messages || []
 
-    scrollToBottom()
+    nextTick(() => {
+      scrollToBottom()
+    })
   } catch (err) {
     console.error('Failed to load messages:', err.response?.data || err)
     toast.error(err.response?.data?.error || 'Failed to load messages')
@@ -86,68 +254,43 @@ const getMessages = async (sessionId) => {
   }
 }
 
-const checkReadStatus = async (session) => {
+const markAsRead = async (session) => {
   if (!session || session.is_read_admin) return
 
-  const website = selectedWebsite.value?.website
+  const website = selectedWebsite.value?.website || session.website
+
   try {
     await axios.post('/chat/markread', {
       session_id: session.session_id,
       sender_type: 'admin',
-      website: finalWebsite,
+      website: website,
     })
+
+    // Update local state
+    const chatInList = allChats.value.find((c) => c.session_id === session.session_id)
+    if (chatInList) {
+      chatInList.is_read_admin = true
+    }
     session.is_read_admin = true
   } catch (err) {
-    console.warn('Failed to persist read status', err)
+    console.warn('Failed to mark as read', err)
   }
 }
 
 const selectRequest = async (request) => {
   selectedSession.value = null
   messages.value = []
-
   await nextTick()
+  selectedSession.value = { ...request }
 
-  selectedSession.value = request
-
-  // Properly determine website
-  const website = selectedWebsite.value?.website || request.website
-
-  // 1. Mark as read on backend + update local state reactively
-  if (!request.is_read_admin && website) {
-    try {
-      await axios.post('/chat/markread', {
-        session_id: request.session_id,
-        sender_type: 'admin',
-        website: website,
-      })
-
-      // Properly update the source array (reactively)
-      const chatInList = allChats.value.find((c) => c.session_id === request.session_id)
-      if (chatInList) {
-        chatInList.is_read_admin = true
-      }
-
-      // Also update the selected one just in case
-      request.is_read_admin = true
-    } catch (err) {
-      console.warn('Failed to mark as read', err)
-    }
+  // Mark as read
+  if (!request.is_read_admin) {
+    await markAsRead(request)
   }
 
-  // Then load messages
+  // Load messages
   await getMessages(request.session_id)
 }
-
-// const selectRequest = async (request) => {
-//   selectedSession.value = null
-//   messages.value = []
-//   nextTick(async () => {
-//     selectedSession.value = request
-//     await getMessages(request.session_id)
-//     checkReadStatus(request)
-//   })
-// }
 
 const formatTime = (timestamp) => {
   const date = new Date(timestamp)
@@ -167,34 +310,82 @@ const formatTime = (timestamp) => {
 
 const chatSection = ref(null)
 const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatSection.value) {
-      chatSection.value.scrollTop = chatSection.value.scrollHeight
-    }
-  })
+  if (chatSection.value) {
+    chatSection.value.scrollTop = chatSection.value.scrollHeight
+  }
 }
 
-watch(messages, () => {
-  scrollToBottom()
-})
+watch(
+  messages,
+  () => {
+    nextTick(() => {
+      scrollToBottom()
+    })
+  },
+  { deep: true },
+)
 
 const sendMessage = async () => {
   if (!newMessage.value.trim() || !selectedSession.value) return
 
+  const messageText = newMessage.value
+  const website = selectedWebsite.value?.website || selectedSession.value.website
+
+  newMessage.value = ''
+
+  // Optimistically add message to UI with a unique temp ID
+  const tempId = `temp-${Date.now()}-${Math.random()}`
+  const tempMessage = {
+    id: tempId,
+    message: messageText,
+    sender_type: 'admin',
+    timestamp: new Date().toISOString(),
+    pending: true,
+    isTemporary: true, // Mark as temporary
+  }
+
+  messages.value.push(tempMessage)
+
+  nextTick(() => {
+    scrollToBottom()
+  })
+
+  if (inputTypingTimeout) clearTimeout(inputTypingTimeout)
+  sendTypingIndicator(selectedSession.value.session_id, false)
+
   try {
     sending.value = true
+
     const response = await axios.post('/chat/admin/message', {
       session_id: selectedSession.value.session_id,
-      message: newMessage.value,
-      website: selectedWebsite.value,
+      message: messageText,
+      website: website,
       sender_type: 'admin',
     })
-    console.log(response)
-    newMessage.value = ''
-    // mark as read
+
+    // Wait a bit for real-time update, then remove temp message
+    setTimeout(() => {
+      const tempIndex = messages.value.findIndex((m) => m.id === tempId && m.isTemporary)
+      if (tempIndex !== -1) {
+        console.log('Removing temporary message after successful send')
+        messages.value.splice(tempIndex, 1)
+      }
+    }, 1000)
+
+    // Mark as read
     selectedSession.value.is_read_admin = true
-    await getMessages(selectedSession.value.session_id)
   } catch (error) {
+    console.error('Send error:', error.response?.data || error)
+
+    // Remove failed message immediately
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIndex !== -1) {
+      messages.value.splice(tempIndex, 1)
+    }
+
+    // Restore message to input
+    newMessage.value = messageText
+
     toast.error('Failed to send message')
   } finally {
     sending.value = false
@@ -204,11 +395,13 @@ const sendMessage = async () => {
 const handleModalSend = async (msg) => {
   if (!msg.trim() || !selectedSession.value) return
 
+  const tempId = Date.now()
   messages.value.push({
-    id: Date.now(),
+    id: tempId,
     message: msg,
     sender_type: 'admin',
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
+    pending: true,
   })
 
   scrollToBottom()
@@ -218,16 +411,27 @@ const handleModalSend = async (msg) => {
     await axios.post('/chat/admin/message', {
       session_id: selectedSession.value.session_id,
       message: msg,
-      website: selectedWebsite.value,
+      website: selectedWebsite.value?.website || selectedSession.value.website,
       sender_type: 'admin',
     })
+
+    // Remove temp message
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIndex !== -1) {
+      messages.value.splice(tempIndex, 1)
+    }
   } catch (err) {
     toast.error('Failed to send message')
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIndex !== -1) {
+      messages.value.splice(tempIndex, 1)
+    }
   } finally {
     sending.value = false
   }
 }
 
+// const website = selectedWebsite.value?.website || selectedSession.value.website
 function openPopup() {
   const { open, close } = useModal({
     component: ExpendedChat,
@@ -238,11 +442,102 @@ function openPopup() {
       loading: messagesLoading.value,
       newMessage: newMessage.value,
       formatTime: formatTime,
+      website: selectedWebsite.value?.website || selectedSession.value.website,
+      onTypingStart: () => {
+        if (selectedSession.value) {
+          sendTypingIndicator(selectedSession.value.session_id, true)
+        }
+      },
+      onTypingStop: () => {
+        if (selectedSession.value) {
+          sendTypingIndicator(selectedSession.value.session_id, false)
+        }
+      },
+      getConnectionStatus: () => ({
+        isConnected: isConnected.value,
+        statusText: statusText.value,
+      }),
 
+      getTypingStatus: () => {
+        if (!selectedSession.value) return false
+        return userTypingMap.value.get(selectedSession.value.session_id) || false
+      },
       // Modal Events
       onClose: () => close(),
 
       onSend: (msg) => handleModalSend(msg),
+    },
+  })
+
+  open()
+}
+// const website = selectedWebsite.value?.website || selectedSession.value.website
+// const sessionId = selectedSession.value.session_id
+// const deleteChatSession = async () => {
+//   const sessionId = selectedSession.value.session_id
+//   if (!sessionId) {
+//     toast.info('No session selected')
+//     return
+//   }
+//   try {
+//     deleting.value = true
+//     // messagesLoading.value = true
+//     const website = selectedWebsite.value?.website || selectedSession.value.website
+
+//     const response = await axios.delete(`chat/admin/session/${sessionId}`, {
+//       params: { website: website },
+//     })
+//     toast.success('Chat session deleted')
+//     console.log(response)
+
+//     const index = allChats.value.findIndex((chat) => chat.session_id === sessionId)
+//     if (index !== -1) {
+//       allChats.value.splice(index, 1)
+//     }
+//     selectedSession.value = null
+
+//     messages.value = []
+
+//     newMessage.value = ''
+
+//     if (allChats.value.length > 0) {
+//     }
+//   } catch (err) {
+//     console.error('Failed to delete chat session:', err)
+//     toast.error('Failed to delete chat session')
+//   } finally {
+//     deleting.value = false
+//     // messagesLoading.value = false
+//   }
+// }
+
+function deleteConversation() {
+  const website = selectedWebsite.value?.website || selectedSession.value?.website || null
+  const sessionId = selectedSession.value?.session_id || null
+
+  if (!sessionId || !website) {
+    toast.error('Missing info')
+    return
+  }
+
+  const { open, close } = useModal({
+    component: ConfirmDeleteChat,
+    attrs: {
+      website,
+      id: sessionId,
+      onConfirm(id) {
+        if (id) {
+          const index = allChats.value.findIndex((chat) => chat.session_id === id)
+          if (index !== -1) allChats.value.splice(index, 1)
+
+          if (selectedSession.value?.session_id === id) {
+            selectedSession.value = null
+            messages.value = []
+            newMessage.value = ''
+          }
+        }
+        close()
+      },
     },
   })
 
@@ -256,95 +551,115 @@ const extendChat = (chat) => {
   openPopup()
 }
 
-const deleteChatSession = async () => {
-  const sessionId = selectedSession.value.session_id
-  if (!sessionId) {
-    toast.info('No session selected')
+const removeActiveTag = ref(true)
+
+setTimeout(() => {
+  removeActiveTag.value = false
+}, 10000)
+
+const search = ref('')
+const suggestions = ref([])
+
+const getEmailSuggestions = () => {
+  const term = search.value.trim().toLowerCase()
+
+  if (term.length < 3) {
+    suggestions.value = []
     return
   }
 
-  try {
-    deleting.value = true
-    const website = selectedWebsite.value?.website || selectedSession.value.website
+  suggestions.value = allChats.value
+    .filter((chat) => chat.user_email.toLowerCase().includes(term))
+    .slice(0, 5)
+}
 
-    const response = await axios.delete(`chat/admin/session/${sessionId}`, {
-      params: { website: website },
-    })
+watch(search, () => {
+  getEmailSuggestions()
+})
 
-    console.log('Delete response:', response)
-    toast.success('Chat session marked as inactive')
+const userListOpen = ref(true)
 
-    // UPDATE THIS PART: Instead of removing, mark as inactive
-    const index = allChats.value.findIndex((chat) => chat.session_id === sessionId)
-    if (index !== -1) {
-      // Mark as inactive instead of removing
-      allChats.value[index] = {
-        ...allChats.value[index],
-        last_message: 'Chat cleared by admin',
-        last_message_time: new Date().toISOString(),
-        message_count: 0,
-        is_active: false,
-        is_deleted: true, // Optional: add a flag
-        is_read_admin: true, // Mark as read since it's cleared
-      }
-
-      // Optional: Move to bottom to keep UI clean
-      const [inactiveChat] = allChats.value.splice(index, 1)
-      allChats.value.push(inactiveChat)
-    }
-
-    // Clear current chat if it's the one being deleted
-    if (selectedSession.value?.session_id === sessionId) {
-      selectedSession.value = null
-      messages.value = []
-      newMessage.value = ''
-    }
-  } catch (err) {
-    console.error('Failed to delete chat session:', err)
-    toast.error('Failed to delete chat session')
-  } finally {
-    deleting.value = false
-  }
+// Add this function with your other functions
+const toggleUserList = () => {
+  userListOpen.value = !userListOpen.value
 }
 </script>
 
 <template>
-  <div class="flex flex-col md:flex-row h-auto md:h-[500px] gap-4">
-    <!-- Sidebar with User List -->
+  <div class="flex flex-col lg:flex-row h-auto gap-4">
+    <!-- Status indicators - fixed on mobile but not taking too much space -->
+    <div
+      v-if="!isConnected && removeActiveTag"
+      class="lg:fixed top-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 mx-4 lg:mx-0 lg:w-auto"
+    >
+      <div class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+      <span class="text-sm font-medium">Connecting to real-time updates...</span>
+    </div>
+
+    <div
+      v-if="isConnected && removeActiveTag"
+      class="lg:fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 mx-4 lg:mx-0 lg:w-auto"
+    >
+      <div class="w-2 h-2 rounded-full bg-green-500"></div>
+      <span class="text-sm font-medium">Live updates active</span>
+    </div>
+
+    <!-- User list sidebar - improved mobile layout -->
     <nav
-      class="w-full md:w-[320px] bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200"
+      class="w-full lg:w-[320px] flex-shrink-0 bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200 max-h-[50vh] lg:max-h-[500px]"
     >
       <div
-        class="px-5 py-4 border-b flex items-center justify-between bg-gradient-to-r from-teal-20 to-blue-50"
+        class="px-4 lg:px-5 py-3 lg:py-4 border-b flex items-center justify-between bg-gradient-to-r from-teal-20 to-blue-50 sticky top-0 z-10"
       >
-        <h2 class="text-lg text-gray-800">All Users</h2>
+        <h2 class="text-base lg:text-lg text-gray-800 whitespace-nowrap font-semibold">
+          All Users
+        </h2>
+        <button
+          @click="toggleUserList"
+          class="lg:hidden text-gray-600 hover:text-gray-800"
+          aria-label="Toggle user list"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
       </div>
 
-      <div v-if="loading" class="flex justify-center items-center h-60">
+      <div v-if="loading" class="flex justify-center items-center h-40 lg:h-60">
         <div
-          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+          class="loader w-[32px] lg:w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
         ></div>
       </div>
 
-      <ul v-else class="flex-1 overflow-y-auto">
+      <ul
+        v-else
+        class="flex-1 overflow-y-auto animate-fadeUp"
+        :class="{ 'hidden lg:block': !userListOpen }"
+      >
         <li
-          v-for="res in allChats"
-          :key="res.session_id"
-          class="cursor-pointer transition-all duration-200"
+          v-for="res in suggestions.length ? suggestions : allChats"
+          :key="(suggestions.length ? 's-' : 'a-') + res.session_id"
           @click="selectRequest(res)"
+          class="cursor-pointer transition-all duration-200 group"
         >
           <div
             :class="[
-              'px-4 py-3 transition-all flex items-start gap-3 mx-2 my-2 rounded-lg',
+              'px-3 lg:px-4 py-2 lg:py-3 transition-all flex items-start gap-3 mx-1 lg:mx-2 my-1 lg:my-2 rounded-lg',
               selectedSession?.session_id === res.session_id
                 ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200 border'
                 : 'hover:bg-gray-50 border border-transparent',
             ]"
           >
+            <!-- Avatar -->
             <div
-              class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md"
+              class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow"
             >
-              <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-4 h-4 lg:w-5 lg:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fill-rule="evenodd"
                   d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -363,7 +678,7 @@ const deleteChatSession = async () => {
                 <div class="flex-1 min-w-0">
                   <span
                     :class="[
-                      'block truncate text-sm leading-tight transition-all',
+                      'block truncate text-xs lg:text-sm leading-tight transition-all',
                       !res.is_read_admin ? 'font-bold text-gray-900' : 'font-medium text-gray-600',
                     ]"
                   >
@@ -371,27 +686,47 @@ const deleteChatSession = async () => {
                   </span>
                 </div>
 
-                <span class="text-xs text-gray-500 flex-shrink-0 ml-3">
+                <span class="text-xs text-gray-500 flex-shrink-0 ml-2 lg:ml-3 text-nowrap">
                   {{ formatTime(res.last_message_time) }}
                 </span>
               </div>
 
-              <p
-                :class="[
-                  'text-sm truncate transition-colors',
-                  !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
-                ]"
-              >
-                {{ res.last_message }}
-              </p>
+              <div class="flex justify-between items-end gap-1 lg:gap-2">
+                <p
+                  :class="[
+                    'text-xs lg:text-sm truncate transition-colors flex-1',
+                    !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
+                  ]"
+                >
+                  {{ res.last_message }}
+                </p>
 
-              <span v-if="!res.is_read_admin" class="absolute -top-1 -left-6 pointer-events-none">
+                <span
+                  v-if="res.last_message"
+                  class="inline-flex items-center gap-1 px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-200 flex-shrink-0 shadow-sm"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span class="hidden lg:inline">Active</span>
+                </span>
+
+                <span
+                  v-else
+                  class="inline-flex items-center px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full text-xs font-medium bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 border border-gray-300 flex-shrink-0"
+                >
+                  <span class="hidden lg:inline">Inactive</span>
+                </span>
+              </div>
+
+              <span
+                v-if="!res.is_read_admin"
+                class="absolute -top-1 -left-3 lg:-left-6 pointer-events-none"
+              >
                 <span class="relative flex">
                   <span
-                    class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-teal-200 opacity-80"
+                    class="animate-ping absolute inline-flex h-2 w-2 lg:h-3 lg:w-3 rounded-full bg-teal-200 opacity-80"
                   ></span>
                   <span
-                    class="relative inline-flex rounded-full h-3 w-3 bg-teal-300 shadow-lg"
+                    class="relative inline-flex rounded-full h-2 w-2 lg:h-3 lg:w-3 bg-teal-300 shadow"
                   ></span>
                 </span>
               </span>
@@ -399,12 +734,12 @@ const deleteChatSession = async () => {
           </div>
         </li>
 
-        <li v-if="!allChats.length" class="p-8 text-center">
+        <li v-if="!allChats.length" class="p-6 lg:p-8 text-center">
           <div
-            class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
+            class="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
           >
             <svg
-              class="w-8 h-8 text-gray-400"
+              class="w-6 h-6 lg:w-8 lg:h-8 text-gray-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -417,34 +752,89 @@ const deleteChatSession = async () => {
               />
             </svg>
           </div>
-          <p class="text-gray-500 font-medium">No chats found</p>
+          <p class="text-gray-500 font-medium text-sm lg:text-base">No chats found</p>
         </li>
       </ul>
     </nav>
 
+    <!-- Main chat section -->
     <section
-      class="flex-1 bg-white h-full shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col"
+      class="flex-1 min-w-0 bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col min-h-[300px] lg:min-h-[500px]"
     >
       <div
-        class="px-6 py-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-gradient-to-r from-white to-gray-50"
+        class="px-4 lg:px-6 py-3 lg:py-4 border-b flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3"
       >
         <div class="flex flex-col">
-          <h1 class="text-2xl text-gray-800">User Chat</h1>
-          <p class="text-gray-600 text-sm">Admin can respond to all unanswered chat from users</p>
+          <h1 class="text-xl lg:text-2xl text-gray-800 font-semibold">User Chat</h1>
+          <p class="text-gray-600 text-xs lg:text-sm">
+            Admin can respond to all unanswered chat from users
+          </p>
         </div>
-        <Filter v-model:website="selectedWebsite" />
+        <div class="w-full lg:w-auto">
+          <Filter v-model:website="selectedWebsite" class="w-full" />
+        </div>
       </div>
 
       <section class="flex-1 flex flex-col overflow-hidden">
         <header
-          class="px-6 py-4 border-b bg-gradient-to-r from-teal-50/50 to-blue-50/50 flex items-center justify-between"
+          class="px-4 lg:px-6 py-3 lg:py-4 border-b bg-gradient-to-r from-teal-50/50 to-blue-50/50 flex items-center justify-between"
         >
           <template v-if="selectedSession">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
               <div
-                class="w-11 h-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg"
+                class="w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow flex-shrink-0"
               >
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <svg
+                  class="w-5 h-5 lg:w-6 lg:h-6 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-base lg:text-lg text-teal-600 font-medium truncate">
+                  {{ selectedSession.user_email }}
+                </p>
+                <p class="text-xs lg:text-sm text-gray-500 truncate">
+                  {{ selectedSession.message_count }} messages
+                </p>
+              </div>
+              <div class="flex items-center gap-1 lg:gap-3 flex-shrink-0">
+                <button
+                  @click="openPopup"
+                  class="p-1 lg:p-0 text-gray-400 hover:text-gray-600"
+                  title="Expand chat"
+                >
+                  <Extend class="w-5 h-5 lg:w-6 lg:h-6" />
+                </button>
+                <button
+                  @click="deleteConversation()"
+                  :disabled="deleting"
+                  title="Delete Chat Session"
+                  class="p-1 lg:p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Loading v-if="deleting" class="w-4 h-4 lg:w-5 lg:h-5 text-gray-700" />
+                  <Delete v-else class="text-gray-700 w-4 h-4 lg:w-5 lg:h-5" />
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="flex items-center gap-2">
+              <div
+                class="w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-gray-200 flex items-center justify-center shadow"
+              >
+                <svg
+                  class="w-5 h-5 lg:w-6 lg:h-6 text-gray-400"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
                   <path
                     fill-rule="evenodd"
                     d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -453,35 +843,30 @@ const deleteChatSession = async () => {
                 </svg>
               </div>
               <div>
-                <p class="text-lg text-teal-600">
-                  {{ selectedSession.user_email }}
+                <p class="text-base lg:text-lg text-gray-400 font-medium">No chat selected</p>
+                <p class="text-xs lg:text-sm text-gray-400">
+                  Select a conversation from the sidebar
                 </p>
               </div>
-            </div>
-
-            <div class="flex items-center">
-              <p class="text-sm text-gray-600 font-medium">
-                {{ selectedSession.message_count }} messages
-              </p>
-              <button @click="openPopup" class="p-2 rounded text-mainColor" title="Expand chat">
-                <Extend />
-              </button>
             </div>
           </template>
         </header>
 
         <section
-          class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-gray-50/30 to-white"
+          class="flex-1 p-4 lg:p-6 overflow-y-auto bg-gradient-to-b from-gray-50/30 to-white"
           id="chatMessagesContainer"
           ref="chatSection"
         >
-          <div v-if="!selectedSession" class="h-[200px] flex items-center justify-center">
+          <div
+            v-if="!selectedSession"
+            class="h-[150px] lg:h-[200px] flex items-center justify-center"
+          >
             <div class="text-center">
               <div
-                class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4"
+                class="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3 lg:mb-4"
               >
                 <svg
-                  class="w-10 h-10 text-gray-400"
+                  class="w-8 h-8 lg:w-10 lg:h-10 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -494,19 +879,23 @@ const deleteChatSession = async () => {
                   />
                 </svg>
               </div>
-              <p class="text-gray-600 font-semibold text-lg">Select a session to view messages</p>
-              <p class="text-gray-400 text-sm mt-1">Choose a conversation from the sidebar</p>
+              <p class="text-gray-600 font-semibold text-base lg:text-lg">
+                Select a session to view messages
+              </p>
+              <p class="text-gray-400 text-xs lg:text-sm mt-1">
+                Choose a conversation from the sidebar
+              </p>
             </div>
           </div>
 
           <div v-else>
-            <div v-if="messagesLoading" class="flex justify-center items-center h-60">
+            <div v-if="messagesLoading" class="flex justify-center items-center h-40 lg:h-60">
               <div
-                class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+                class="loader w-[32px] lg:w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
               ></div>
             </div>
 
-            <div v-else class="space-y-3 min-h-0">
+            <div v-else class="space-y-2 lg:space-y-3 min-h-0">
               <!-- Messages -->
               <div
                 v-for="m in messages"
@@ -515,46 +904,68 @@ const deleteChatSession = async () => {
               >
                 <div
                   :class="[
-                    'max-w-[75%] px-4 py-3 rounded-2xl shadow-md transition-all hover:shadow-lg',
+                    'max-w-[85%] lg:max-w-[75%] px-3 lg:px-4 py-2 lg:py-3 rounded-2xl shadow break-words min-w-0',
                     m.sender_type === 'admin'
                       ? 'bg-gradient-to-br from-teal-500 to-teal-600 text-white'
                       : 'bg-white text-gray-900 border border-gray-200',
+                    m.pending ? 'opacity-70' : '',
                   ]"
                 >
-                  <p class="text-sm leading-relaxed break-words">{{ m.message }}</p>
+                  <p class="text-xs lg:text-sm leading-relaxed break-words">{{ m.message }}</p>
                   <p
                     :class="[
-                      'text-xs mt-2',
+                      'text-xs mt-1 lg:mt-2 flex items-center gap-1',
                       m.sender_type === 'admin' ? 'text-teal-100' : 'text-gray-500',
                     ]"
                   >
                     {{ formatTime(m.timestamp) }}
+                    <span v-if="m.pending" class="italic">• sending...</span>
                   </p>
+                </div>
+              </div>
+              <div v-if="isCurrentUserTyping" class="flex justify-start mb-2 lg:mb-3">
+                <div
+                  class="bg-white border border-gray-200 rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shadow-sm"
+                >
+                  <div class="flex gap-1">
+                    <span
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 0ms"
+                    ></span>
+                    <span
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 150ms"
+                    ></span>
+                    <span
+                      class="w-1.5 h-1.5 lg:w-2 lg:h-2 bg-gray-400 rounded-full animate-bounce"
+                      style="animation-delay: 300ms"
+                    ></span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Input Footer -->
-        <footer class="px-6 py-4 border-t bg-white">
-          <div class="flex gap-3">
+        <footer class="px-4 lg:px-6 py-3 lg:py-4 border-t bg-white">
+          <div class="flex flex-col sm:flex-row gap-2 lg:gap-3">
             <input
               v-model="newMessage"
+              @input="handleInputChange"
               @keyup.enter="sendMessage"
               :disabled="!selectedSession || sending"
               placeholder="Type your message..."
-              class="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 px-3 lg:px-4 py-2 lg:py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base"
             />
 
             <button
               @click="sendMessage"
               :disabled="!selectedSession || !newMessage.trim() || sending"
-              class="px-6 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow-lg hover:shadow-xl flex items-center gap-2"
+              class="w-full sm:w-auto px-4 lg:px-6 py-2.5 lg:py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition shadow hover:shadow-lg flex items-center justify-center gap-2 whitespace-nowrap text-sm lg:text-base"
             >
               <svg
                 v-if="!sending"
-                class="w-5 h-5"
+                class="w-4 h-4 lg:w-5 lg:h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -568,7 +979,7 @@ const deleteChatSession = async () => {
               </svg>
               <div
                 v-else
-                class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
+                class="w-4 h-4 lg:w-5 lg:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
               ></div>
               <span>{{ sending ? 'Sending...' : 'Send' }}</span>
             </button>
@@ -577,130 +988,9 @@ const deleteChatSession = async () => {
       </section>
     </section>
   </div>
-
-  <li
-    v-for="res in suggestions.length ? suggestions : allChats"
-    :key="(suggestions.length ? 's-' : 'a-') + res.session_id"
-    @click="selectRequest(res)"
-    class="cursor-pointer transition-all duration-200 group relative"
-  >
-    <div
-      :class="[
-        'px-4 py-3 transition-all flex items-start gap-3 mx-2 my-2 rounded-lg',
-        selectedSession?.session_id === res.session_id
-          ? 'bg-teal-50 text-teal-600 font-semibold border-teal-200 border'
-          : 'hover:bg-gray-50 border border-transparent',
-      ]"
-    >
-      <!-- Avatar -->
-      <div
-        class="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md"
-      >
-        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fill-rule="evenodd"
-            d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-            clip-rule="evenodd"
-          />
-        </svg>
-      </div>
-
-      <!-- Content Area -->
-      <div class="flex-1 min-w-0 relative">
-        <!-- Unread background -->
-        <div v-if="!res.is_read_admin" class="absolute inset-0 bg-red-50/60 rounded-lg -z-10"></div>
-
-        <!-- Top row: Email + Time + Actions -->
-        <div class="flex justify-between items-start mb-1">
-          <div class="flex-1 min-w-0">
-            <span
-              :class="[
-                'block truncate text-sm leading-tight transition-all',
-                !res.is_read_admin ? 'font-bold text-gray-900' : 'font-medium text-gray-600',
-              ]"
-            >
-              {{ res.user_email }}
-            </span>
-          </div>
-
-          <!-- Time + Actions Container -->
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <span class="text-xs text-gray-500">
-              {{ formatTime(res.last_message_time) }}
-            </span>
-
-            <!-- Three-dot Menu Button - Shows on hover for ALL items -->
-            <button
-              @click.stop="toggleMenu(res.session_id)"
-              class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
-              :class="{ 'opacity-100': activeMenuId === res.session_id }"
-              aria-label="More options"
-            >
-              <svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Last message -->
-        <p
-          :class="[
-            'text-sm truncate transition-colors pr-8',
-            !res.is_read_admin ? 'text-gray-800 font-medium' : 'text-gray-600',
-          ]"
-        >
-          {{ res.last_message }}
-        </p>
-
-        <!-- Unread indicator -->
-        <span v-if="!res.is_read_admin" class="absolute -top-1 -left-6 pointer-events-none">
-          <span class="relative flex">
-            <span
-              class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-teal-200 opacity-80"
-            ></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-teal-300 shadow-lg"></span>
-          </span>
-        </span>
-      </div>
-    </div>
-
-    <!-- Dropdown Menu (Shows for the clicked item only) -->
-    <div
-      v-if="activeMenuId === res.session_id"
-      class="absolute right-4 z-50 mt-1 w-32 rounded-md bg-white shadow-lg border border-gray-200 py-1"
-      @click.stop
-    >
-      <button
-        @click="deleteChat(res.session_id)"
-        class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
-        Delete Chat
-      </button>
-    </div>
-  </li>
-  <!-- Change the button class from this: -->
-
-  <!-- To this (always visible): -->
-  <!-- <button 
-  @click.stop="toggleMenu(res.session_id)"
-  class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200 transition-colors opacity-70 hover:opacity-100 focus:opacity-100 focus:outline-none"
-  :class="{'opacity-100 bg-gray-100': activeMenuId === res.session_id}"
-> -->
 </template>
 
 <style scoped>
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -738,616 +1028,18 @@ const deleteChatSession = async () => {
 li:hover .bg-red-50\/60 {
   background-color: rgba(254, 226, 226, 0.8) !important;
 }
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>
-
-<script setup>
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
-import axios from 'axios'
-import { VueFinalModal } from 'vue-final-modal'
-import Cancel from './Icons/Cancel.vue'
-import Reload from './Icons/Reload.vue'
-import SendBtn from './Icons/SendBtn.vue'
-
-const emit = defineEmits(['close', 'send'])
-const props = defineProps({
-  session: Object,
-  messages: Array,
-  website: String,
-  loading: Boolean,
-  sending: Boolean,
-  newMessage: String,
-  formatTime: Function,
-  onTypingStart: Function,
-  onTypingStop: Function,
-  getConnectionStatus: Function,
-  getTypingStatus: Function,
-})
-
-console.log('ExpendedChat props:', props.website)
-
-const internalMessage = ref('')
-const typingTimeout = ref(null)
-
-// Create computed properties for reactive values
-const connectionStatus = computed(() => props.getConnectionStatus?.() || {})
-const isTyping = computed(() => props.getTypingStatus?.() || false)
-
-watch(
-  () => props.newMessage,
-  (val) => {
-    internalMessage.value = val
-  },
-  { immediate: true },
-)
-
-const handleSend = () => {
-  if (!internalMessage.value.trim()) return
-
-  // Stop typing indicator
-  props.onTypingStop?.()
-
-  emit('send', internalMessage.value)
-  internalMessage.value = ''
-}
-
-const closeModal = () => {
-  // Make sure typing indicator is stopped
-  props.onTypingStop?.()
-  emit('close')
-}
-
-// Handle typing indicators on input
-const handleInput = () => {
-  // Clear existing timeout
-  if (typingTimeout.value) {
-    clearTimeout(typingTimeout.value)
-  }
-
-  // Start typing
-  props.onTypingStart?.()
-
-  // Set timeout to stop typing after 1 second of inactivity
-  typingTimeout.value = setTimeout(() => {
-    props.onTypingStop?.()
-  }, 1000)
-}
-
-// Cleanup on unmount
-onUnmounted(() => {
-  if (typingTimeout.value) {
-    clearTimeout(typingTimeout.value)
-  }
-  // Ensure typing is stopped
-  props.onTypingStop?.()
-})
-
-// Watch for internal message changes to trigger typing
-watch(internalMessage, () => {
-  if (internalMessage.value.trim()) {
-    handleInput()
-  } else {
-    props.onTypingStop?.()
-  }
-})
-</script>
-
-<template>
-  <!-- this is for the dashboard overview -->
-  <main class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-    <div class="flex flex-wrap lg:flex-nowrap gap-6 w-full">
-      <div
-        class="flex flex-row items-center flex-1 min-w-[300px] h-[190px] shadow-sm bg-white rounded-lg overflow-hidden"
-      >
-        <div class="flex flex-col p-6 flex-1 gap-3">
-          <h2 class="text-lg text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
-          <p class="text-sm text-gray-600 leading-relaxed">
-            Your platform is running smoothly today.<br />
-            Check key stats to stay on top of performance.
-          </p>
-          <RouterLink
-            :to="{ name: 'chatreview' }"
-            class="w-[110px] px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 transition"
-          >
-            View Chat
-          </RouterLink>
-        </div>
-        <div class="ml-auto h-full flex items-end">
-          <Illustration />
-        </div>
-      </div>
-
-      <div class="flex flex-row flex-wrap justify-between gap-5 min-w-[350px]">
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition animate-fadeUp"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-
-          <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <UserIcon />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Total Users</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-
-          <div v-else class="w-[155px]">
-            <NoUserFound />
-          </div>
-        </div>
-
-        <div
-          class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-[139px] w-[155px]">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-          <div v-else-if="Object.values(allMessages).flat().length" class="animate-fadeUp">
-            <div class="relative bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div
-                class="absolute top-3 right-3 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
-              >
-                <Message />
-              </div>
-
-              <p class="text-gray-500 text-sm mb-1">Total Messages</p>
-              <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{ totalMessageCount }}
-              </h2>
-
-              <p class="text-xs text-gray-400 mt-2">Across all sources</p>
-            </div>
-          </div>
-          <div v-else class="w-[155px]">
-            <NoMessageFound />
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="w-full flex items-center justify-end mt-2 mb-1">
-      <div class="flex items-center gap-3">
-        <Filter v-model:website="selectedWebsite" />
-      </div>
-    </div>
-
-    <section class="w-full mt-4 space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div
-          class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
-            <button
-              @click="getAllUser"
-              class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
-            >
-              Refresh
-            </button>
-          </div>
-
-          <div class="flex justify-center items-center h-[250px]">
-            <canvas ref="userChartRef" class="max-w-[250px]"></canvas>
-          </div>
-        </div>
-
-        <div
-          class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
-        >
-          <div v-if="loading" class="flex justify-center items-center h-40">
-            <div
-              class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
-            ></div>
-          </div>
-
-          <div v-else-if="allMessages">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Recent Conversations</h2>
-
-            <div class="space-y-4 max-h-[260px] overflow-y-auto">
-              <div
-                v-for="(recent, index) in allMessages.slice(0, 3)"
-                :key="index"
-                class="border-b border-gray-100 pb-3 last:border-0"
-              >
-                <div class="flex justify-between items-center">
-                  <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
-                  <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
-                </div>
-                <p class="text-sm text-mainColor truncate mt-1">
-                  {{ recent.message }}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div v-else>
-            <EmptyNoMessage />
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-</template>
-
-<template>
-  <!-- this for the settings part -->
-  <div class="p-6 bg-white shadow rounded-lg">
-    <div class="flex flex-row justify-between items-center">
-      <h2 class="text-3xl font-semibold mb-6">Chatbot Appearance</h2>
-      <Filter v-model:website="selectedWebsite" v-model:apikey="selectedApikey" />
-    </div>
-
-    <!-- Loading indicator -->
-    <div v-if="loading" class="text-center py-4">
-      <Loading class="w-6 h-6 mx-auto" />
-      <p class="text-sm text-gray-500 mt-2">Loading settings...</p>
-      <div class="flex justify-center items-center h-60">
-        <div
-          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
-        ></div>
-      </div>
-    </div>
-
-    <div v-else class="flex flex-col lg:flex-row gap-6">
-      <!-- Left: Customization Controls -->
-      <div class="lg:w-2/5 space-y-6">
-        <!-- Avatar Selector -->
-        <div class="border rounded-lg p-4">
-          <h3 class="text-lg font-medium mb-3">Chatbot Avatar</h3>
-
-          <!-- Avatar Preview -->
-          <div class="mb-4 p-4 border rounded-lg bg-gray-50">
-            <div class="flex items-center justify-center mb-2">
-              <div class="w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow">
-                <img
-                  :src="currentAvatarUrl"
-                  class="w-full h-full object-cover"
-                  alt="Selected Avatar"
-                />
-              </div>
-            </div>
-            <p class="text-sm text-center text-gray-600">
-              {{ currentAvatar.name || 'AI Bot' }}
-            </p>
-          </div>
-
-          <!-- Avatar Options -->
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="avatar in avatarOptions"
-              :key="avatar.id"
-              @click="selectAvatar(avatar.id)"
-              class="p-2 border rounded hover:bg-gray-50 transition-colors"
-              :class="
-                selectedAvatar === avatar.id ? 'border-teal-500 bg-teal-50' : 'border-gray-200'
-              "
-            >
-              <img :src="avatar.url" class="w-8 h-8 mx-auto rounded" :alt="avatar.name" />
-              <div class="text-xs text-center mt-1 truncate">{{ avatar.name }}</div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Color Scheme -->
-        <div class="border rounded-lg p-4">
-          <h3 class="text-lg font-medium mb-3">Color Scheme</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
-              <div class="flex items-center gap-4">
-                <input
-                  type="color"
-                  v-model="customization.primarycolor"
-                  class="w-12 h-12 cursor-pointer rounded border"
-                />
-                <input
-                  type="text"
-                  v-model="customization.primarycolor"
-                  class="flex-1 px-3 py-2 border rounded-md font-mono"
-                  @change="validateColor"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
-              <div class="flex items-center gap-4">
-                <input
-                  type="color"
-                  v-model="customization.secondarycolor"
-                  class="w-12 h-12 cursor-pointer rounded border"
-                />
-                <input
-                  type="text"
-                  v-model="customization.secondarycolor"
-                  class="flex-1 px-3 py-2 border rounded-md font-mono"
-                  @change="validateColor"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Bubble Settings -->
-        <div class="border rounded-lg p-4">
-          <h3 class="text-lg font-medium mb-3">Chat Bubble</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Bubble Size</label>
-              <input
-                type="range"
-                v-model="customization.bubblesize"
-                min="48"
-                max="80"
-                class="w-full"
-              />
-              <div class="text-xs text-gray-500 text-center">{{ customization.bubblesize }}px</div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  v-for="pos in positions"
-                  :key="pos.value"
-                  @click="customization.position = pos.value"
-                  class="p-3 border rounded-md text-center hover:bg-gray-50"
-                  :class="customization.position === pos.value ? 'bg-teal-50 border-teal-200' : ''"
-                >
-                  <div class="text-lg mb-1">{{ pos.icon }}</div>
-                  <div class="text-xs">{{ pos.label }}</div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Chat Window -->
-        <div class="border rounded-lg p-4">
-          <h3 class="text-lg font-medium mb-3">Chat Window</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Chat Width</label>
-              <div class="flex items-center gap-4">
-                <input
-                  type="range"
-                  v-model="customization.popupwidth"
-                  min="300"
-                  max="500"
-                  class="flex-1"
-                />
-                <span class="text-sm font-mono">{{ customization.popupwidth }}px</span>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Chat Height</label>
-              <div class="flex items-center gap-4">
-                <input
-                  type="range"
-                  v-model="customization.bubblewidth"
-                  min="400"
-                  max="700"
-                  class="flex-1"
-                />
-                <span class="text-sm font-mono">{{ customization.bubblewidth }}px</span>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Border Radius</label>
-              <input
-                type="range"
-                v-model="customization.borderraduis"
-                min="0"
-                max="24"
-                class="w-full"
-              />
-              <div class="text-xs text-gray-500 text-center">
-                {{ customization.borderraduis }}px
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">Show Avatar</span>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" v-model="customization.showavartar" class="sr-only peer" />
-                <div
-                  class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"
-                ></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Save/Reset Buttons -->
-        <div class="flex gap-3">
-          <button
-            @click="resetCustomization"
-            class="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Reset
-          </button>
-          <button
-            @click="saveCustomization"
-            :disabled="loading"
-            class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Loading v-if="loading" class="w-4 h-4" />
-            <span v-if="!loading">Save Changes</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Right: Live Preview -->
-      <div class="lg:w-3/5">
-        <div class="border rounded-lg p-4">
-          <h3 class="text-lg font-medium mb-4">Live Preview</h3>
-
-          <div class="border rounded-lg bg-gray-50 p-4 min-h-[500px] relative">
-            <div class="bg-white rounded p-4 mb-4 shadow-sm">
-              <p>Welcome to your chat</p>
-            </div>
-            <div
-              class="absolute transition-all duration-300"
-              :class="positionClasses[customization.position]"
-            >
-              <!-- Chat Bubble -->
-              <div
-                class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105"
-                :style="{
-                  width: customization.bubblesize + 'px',
-                  height: customization.bubblesize + 'px',
-                  backgroundColor: customization.primarycolor,
-                }"
-              >
-                <div class="w-full h-full flex items-center justify-center">
-                  <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                      d="M2 22V9q0-.825.588-1.413Q3.175 7 4 7h2V4q0-.825.588-1.413Q7.175 2 8 2h12q.825 0 1.413.587Q22 3.175 22 4v8q0 .825-.587 1.412Q20.825 14 20 14h-2v3q0 .825-.587 1.413Q16.825 19 16 19H5Zm6-10h8V9H8Zm-4 5h12v-3H8q-.825 0-1.412-.588Q6 12.825 6 12V9H4Zm14-5h2V4H8v3h8q.825 0 1.413.587Q18 8.175 18 9Z"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              <!-- Chat Window Preview -->
-              <div
-                v-if="showPreviewWindow"
-                class="absolute bottom-full mb-4 right-0 rounded-lg shadow-xl overflow-hidden transition-all duration-300"
-                :style="{
-                  width: customization.popupwidth + 'px',
-                  height: customization.bubblewidth + 'px',
-                  backgroundColor: 'white',
-                  borderRadius: customization.borderraduis + 'px',
-                  border: `1px solid ${customization.secondarycolor}20`,
-                }"
-              >
-                <!-- Header -->
-                <div
-                  class="p-4"
-                  :style="{
-                    backgroundColor: customization.primarycolor,
-                    color: 'white',
-                  }"
-                >
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div
-                        v-if="customization.showavartar"
-                        class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
-                        :style="{ backgroundColor: customization.secondarycolor }"
-                      >
-                        <img
-                          :src="currentAvatarUrl"
-                          class="w-8 h-8 rounded-full object-cover"
-                          alt="Chatbot Avatar"
-                        />
-                      </div>
-                      <div>
-                        <div class="font-semibold">ChatBot</div>
-                        <div class="text-sm opacity-90">Online • Ready to help</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Messages -->
-                <div class="p-4 flex-1 overflow-hidden h-[calc(100%-140px)]">
-                  <div class="space-y-3">
-                    <!-- Bot Message -->
-                    <div class="flex gap-2">
-                      <div
-                        v-if="customization.showavartar"
-                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-                        :style="{ backgroundColor: customization.primarycolor }"
-                      >
-                        <img
-                          :src="currentAvatarUrl"
-                          class="w-6 h-6 rounded-full object-cover"
-                          alt="Bot"
-                        />
-                      </div>
-                      <div
-                        class="rounded-2xl px-4 py-3 max-w-[80%]"
-                        :style="{
-                          backgroundColor: customization.secondarycolor + '20',
-                          color: '#333',
-                        }"
-                      >
-                        <div class="text-sm">Hello! How can I help you today?</div>
-                      </div>
-                    </div>
-
-                    <!-- User Message -->
-                    <div class="flex gap-2 justify-end">
-                      <div
-                        class="rounded-2xl px-4 py-3 max-w-[80%]"
-                        :style="{
-                          backgroundColor: customization.primarycolor,
-                          color: 'white',
-                        }"
-                      >
-                        <div class="text-sm">I need help with my order</div>
-                      </div>
-                      <div
-                        v-if="customization.showavartar"
-                        class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden bg-gray-300"
-                      >
-                        <div class="text-xs font-bold">U</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Input -->
-                <div class="p-3 border-t">
-                  <div class="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Type your message..."
-                      class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2"
-                      :style="{
-                        borderColor: customization.secondarycolor + '50',
-                        '--tw-ring-color': customization.primarycolor + '30',
-                      }"
-                    />
-                    <button
-                      class="w-10 h-10 rounded-full flex items-center justify-center text-white"
-                      :style="{ backgroundColor: customization.primarycolor }"
-                    >
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Toggle Preview Button -->
-            <div class="absolute bottom-4 left-4">
-              <button
-                @click="showPreviewWindow = !showPreviewWindow"
-                class="px-4 py-2 bg-white border rounded-md shadow-sm hover:bg-gray-50 text-sm"
-              >
-                {{ showPreviewWindow ? 'Hide Chat Window' : 'Show Chat Window' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>

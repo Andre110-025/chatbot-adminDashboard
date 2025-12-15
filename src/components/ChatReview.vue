@@ -181,7 +181,7 @@ function deleteConversation(conversationId) {
 </script>
 
 <template>
-  <div class="flex flex-row px-2">
+  <div class="flex flex-row px-2 -mt-3">
     <div class="flex flex-row items-center space-x-4">
       <button
         class="mt-2.5 relative pb-2"
@@ -191,7 +191,7 @@ function deleteConversation(conversationId) {
         All Request
         <span
           v-if="activeTab === 'allRequest'"
-          class="absolute left-0 right-0 -bottom-1 h-[2px] bg-mainColor w-5/6 mx-auto"
+          class="absolute left-0 right-0 bottom-[5px] h-[2px] bg-mainColor w-5/6 mx-auto"
         >
         </span>
       </button>
@@ -204,7 +204,7 @@ function deleteConversation(conversationId) {
         All Chats
         <span
           v-if="activeTab === 'allChats'"
-          class="absolute left-0 right-0 -bottom-1 h-[2px] bg-mainColor w-3/4 mx-auto"
+          class="absolute left-0 right-0 bottom-[5px] h-[2px] bg-mainColor w-3/4 mx-auto"
         >
         </span>
       </button>
@@ -212,7 +212,7 @@ function deleteConversation(conversationId) {
   </div>
   <div
     v-if="activeTab === 'allRequest'"
-    class="flex flex-col md:flex-row h-auto md:h-[550px] gap-4"
+    class="flex flex-col md:flex-row h-auto md:h-[550px] gap-4 mt-4"
   >
     <nav
       class="w-full md:w-[270px] bg-white shadow rounded-lg md:ml-1 overflow-y-auto p-5 flex flex-col"
@@ -323,7 +323,7 @@ function deleteConversation(conversationId) {
     </section>
   </div>
 
-  <UserChat v-else-if="activeTab === 'allChats'" />
+  <UserChat v-else-if="activeTab === 'allChats'" class="mt-4" />
 </template>
 
 <style scoped>
