@@ -45,3 +45,13 @@ axios.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // This MUST be in your /public folder
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => console.log('✅ PWA Service Worker Registered!', reg.scope))
+      .catch((err) => console.error('❌ PWA Service Worker Failed!', err))
+  })
+}

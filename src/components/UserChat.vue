@@ -1,4 +1,3 @@
-q
 <script setup>
 import Filter from './Filter.vue'
 import { nextTick, onMounted, onUnmounted, ref, watch, computed } from 'vue'
@@ -583,11 +582,25 @@ const userListOpen = ref(true)
 const toggleUserList = () => {
   userListOpen.value = !userListOpen.value
 }
+
+const isDesktop = ref(false)
+
+const checkScreenSize = () => {
+  isDesktop.value = window.innerWidth >= 1024 // 'lg' breakpoint
+}
+
+onMounted(() => {
+  checkScreenSize()
+  window.addEventListener('resize', checkScreenSize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreenSize)
+})
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row h-auto gap-4">
-    <!-- Status indicators - fixed on mobile but not taking too much space -->
+  <div class="flex flex-col lg:flex-row h-[calc(100vh-120px)] gap-4 antialiased">
     <div
       v-if="!isConnected && removeActiveTag"
       class="lg:fixed top-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 mx-4 lg:mx-0 lg:w-auto"
@@ -604,9 +617,8 @@ const toggleUserList = () => {
       <span class="text-sm font-medium">Live updates active</span>
     </div>
 
-    <!-- User list sidebar - improved mobile layout -->
     <nav
-      class="w-full lg:w-[320px] flex-shrink-0 bg-white shadow-lg rounded-xl overflow-hidden flex flex-col border border-gray-200 max-h-[50vh] lg:max-h-[500px]"
+      class="w-full lg:w-[320px] flex-shrink-0 bg-white shadow-sm rounded-xl overflow-hidden flex flex-col border border-gray-200 h-[35vh] lg:h-full"
     >
       <div
         class="px-4 lg:px-5 py-3 lg:py-4 border-b flex items-center justify-between bg-gradient-to-r from-teal-20 to-blue-50 sticky top-0 z-10"
@@ -757,9 +769,8 @@ const toggleUserList = () => {
       </ul>
     </nav>
 
-    <!-- Main chat section -->
     <section
-      class="flex-1 min-w-0 bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200 flex flex-col min-h-[300px] lg:min-h-[500px]"
+      class="flex-1 min-w-0 bg-white shadow-sm rounded-xl overflow-hidden border border-gray-200 flex flex-col h-full"
     >
       <div
         class="px-4 lg:px-6 py-3 lg:py-4 border-b flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3"
@@ -859,7 +870,7 @@ const toggleUserList = () => {
         >
           <div
             v-if="!selectedSession"
-            class="h-[150px] lg:h-[200px] flex items-center justify-center"
+            class="h-[50px] lg:h-[200px] flex items-center justify-center"
           >
             <div class="text-center">
               <div

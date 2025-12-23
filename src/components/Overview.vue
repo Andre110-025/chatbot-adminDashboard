@@ -114,7 +114,7 @@ const renderUserChart = () => {
       datasets: [
         {
           data: [totalUsers, totalMessages],
-          backgroundColor: ['#14b8a6', '#f97316'],
+          backgroundColor: ['#14b8a6', '#FF8A65'],
           borderWidth: 0,
         },
       ],

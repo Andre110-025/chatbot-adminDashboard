@@ -247,11 +247,15 @@ function deleteConversation(conversationId) {
         </ul>
       </div>
     </nav>
-    <section class="flex-1 px-4 bg-white h-full shadow rounded-lg">
-      <div class="flex flex-row justify-between items-center">
-        <div class="text-2xl mt-[15px] text-gray-800 flex flex-col">
-          <span>Chats Review</span>
-          <p class="text-gray-800 text-[15px] mt-[-5px]">
+    <section
+      class="flex-1 p-4 min-[451px]:px-6 bg-white h-full shadow rounded-lg overflow-hidden flex flex-col"
+    >
+      <div
+        class="flex flex-col min-[451px]:flex-row justify-between items-start min-[451px]:items-center gap-1 mb-4"
+      >
+        <div class="flex flex-col">
+          <h2 class="text-xl min-[451px]:text-2xl text-gray-800">Chats Review</h2>
+          <p class="text-gray-500 text-sm min-[451px]:text-[15px]">
             These are unresponded chat from the user
           </p>
         </div>
@@ -271,48 +275,66 @@ function deleteConversation(conversationId) {
       </div>
 
       <template v-else>
-        <div class="max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar pr-2">
-          <div class="grid gap-5 mt-3.5">
+        <div class="flex-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-1">
+          <div class="grid gap-4 mt-2">
             <div
               v-for="(issues, index) in allRequests"
               :key="index"
-              class="bg-white shadow-sm rounded-xl border border-gray-200 hover:shadow-md transition-all p-5 animate-fadeUp"
+              class="bg-white shadow-sm rounded-xl border border-gray-100 hover:shadow-md transition-all p-4 min-[451px]:p-5 animate-fadeUp"
             >
-              <div class="flex justify-between items-center mb-3">
-                <h3 class="text-lg font-semibold text-gray-800">
+              <div class="flex justify-between items-start mb-4 gap-2">
+                <h3
+                  class="text-base min-[451px]:text-lg font-semibold text-gray-800 break-all leading-tight"
+                >
                   User:
-                  <span class="text-teal-600 font-mono">{{ issues[0].conversation_id }}</span>
-                </h3>
-                <div class="flex flex-row gap-2">
-                  <span class="text-sm text-red-600 bg-gray-100 px-2 py-1 rounded-full">
-                    {{ issues.length }} issue<span v-if="issues.length > 1">s</span>
+                  <span class="text-teal-600 font-mono text-sm min-[451px]:text-base">
+                    {{ issues[0].conversation_id }}
                   </span>
-                </div>
+                </h3>
+                <span
+                  class="shrink-0 text-[10px] min-[451px]:text-xs text-red-600 bg-red-50 px-2.5 py-1 rounded-full border border-red-100 uppercase tracking-wider"
+                >
+                  {{ issues.length }} issue{{ issues.length > 1 ? 's' : '' }}
+                </span>
               </div>
 
               <div class="space-y-3">
                 <div
                   v-for="(msg, i) in issues"
                   :key="i"
-                  class="p-4 border border-gray-100 rounded-lg bg-gray-100 shadow transition"
+                  class="p-3 min-[451px]:p-4 rounded-lg bg-gray-50 border border-gray-100 shadow-sm"
                 >
-                  <div class="flex flex-row justify-between items-center text-gray-800">
-                    <div class="flex flex-row gap-2">
-                      <span class="font-medium text-teal-600">User:</span>
-                      <p>{{ msg.message }}</p>
+                  <div class="flex flex-col gap-1">
+                    <div class="flex items-start gap-2">
+                      <span
+                        class="font-bold text-teal-600 text-xs min-[451px]:text-sm uppercase mt-0.5"
+                        >User:</span
+                      >
+                      <p class="text-gray-700 text-sm min-[451px]:text-[15px] leading-relaxed">
+                        {{ msg.message }}
+                      </p>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                      <p class="text-[10px] text-gray-400">
+                        {{
+                          new Date(msg.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        }}
+                        · {{ new Date(msg.created_at).toLocaleDateString() }}
+                      </p>
                     </div>
                   </div>
-                  <p class="text-xs text-gray-500 mt-1">
-                    {{ new Date(msg.created_at).toLocaleString() }}
-                  </p>
                 </div>
 
-                <div class="flex justify-end pt-2">
+                <div class="flex justify-end pt-1">
                   <button
                     @click="deleteConversation(issues[0].conversation_id)"
+                    class="p-2 hover:bg-red-50 rounded-full transition-colors group"
                     title="Delete conversation"
                   >
-                    <Bin class="text-red-500" />
+                    <Bin class="text-red-400 group-hover:text-red-600 w-5 h-5" />
                   </button>
                 </div>
               </div>
