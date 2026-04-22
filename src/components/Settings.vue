@@ -64,11 +64,11 @@ watch(
         Object.assign(customization, {
           primarycolor: settings.primarycolor || '#10b981',
           secondarycolor: settings.secondarycolor || '#059669',
-          bubblesize: parseInt(settings.bubblesize) || 64, // Convert to number
+          bubblesize: parseInt(settings.bubblesize) || 64,
           position: settings.position || 'bottom-right',
-          popupwidth: parseInt(settings.popupwidth) || 400, // Convert to number
-          bubblewidth: parseInt(settings.bubblewidth) || 600, // Convert to number
-          borderraduis: parseInt(settings.borderraduis) || 16, // Convert to number
+          popupwidth: parseInt(settings.popupwidth) || 400,
+          bubblewidth: parseInt(settings.bubblewidth) || 600,
+          borderraduis: parseInt(settings.borderraduis) || 16,
           showavartar: settings.showavartar === 'true' || settings.showavartar === true || true,
           avartar:
             settings.avartar || 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969',
@@ -113,7 +113,6 @@ const resetCustomization = () => {
   Object.assign(customization, {
     primarycolor: '#10b981',
     secondarycolor: '#059669',
-    // textColor: '#ffffff',
     bubblesize: 64,
     position: 'bottom-right',
     popupwidth: 400,
@@ -152,7 +151,6 @@ const saveCustomization = async () => {
 }
 
 const avatarOptions = ref([
-  // BOT AVATARS - Using Iconify bot icons
   {
     id: 'ai_bot',
     name: 'AI Assistant',
@@ -189,8 +187,6 @@ const avatarOptions = ref([
     url: 'https://api.iconify.design/ri:cpu-fill.svg?color=%23005969',
     type: 'bot',
   },
-
-  // HUMAN AVATARS - Using Iconify human icons
   {
     id: 'agent_male',
     name: 'Male Agent',
@@ -255,23 +251,18 @@ const avatarOptions = ref([
 
 const selectedAvatar = ref('ai_bot')
 
-// Select avatar
 const selectAvatar = (avatarId) => {
   selectedAvatar.value = avatarId
-
-  // Update customization object
   const avatar = avatarOptions.value.find((a) => a.id === avatarId)
   if (avatar) {
     customization.avartar = avatar.url
   }
 }
 
-// Get current selected avatar
 const currentAvatar = computed(() => {
   return avatarOptions.value.find((a) => a.id === selectedAvatar.value) || avatarOptions.value[0]
 })
 
-// This is what gets sent to backend
 const currentAvatarUrl = computed(() => {
   return customization.avartar || 'https://api.iconify.design/ri:robot-2-fill.svg?color=%23005969'
 })
@@ -293,15 +284,15 @@ const currentAvatarUrl = computed(() => {
     <div v-if="loading" class="text-center py-4">
       <Loading class="w-6 h-6 mx-auto" />
       <p class="text-sm text-gray-500 mt-2">Loading settings...</p>
-      <div class="flex justify-center items-center h-60">
+      <div v-if="loading" class="flex justify-center items-center h-[120px]">
         <div
-          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth border-t-transparent border-4 border-teal-600 rounded-full"
+          class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
         ></div>
       </div>
     </div>
 
-    <div v-else class="flex flex-col min-[451px]:flex-row gap-6">
-      <div class="w-full min-[451px]:w-2/5 space-y-6 order-2 min-[451px]:order-1">
+    <div v-else class="flex flex-col lg:flex-row gap-6">
+      <div class="w-full lg:w-2/5 space-y-6">
         <div class="border rounded-lg p-4">
           <h3 class="text-lg font-medium mb-3">Chatbot Avatar</h3>
 
@@ -491,30 +482,37 @@ const currentAvatarUrl = computed(() => {
         </div>
       </div>
 
-      <div class="w-full min-[451px]:w-3/5 order-1 min-[451px]:order-2">
-        <div class="border rounded-lg p-4 bg-white min-h-full">
-          <h3 class="text-lg font-medium mb-4">Live Preview</h3>
+      <!-- MOBILE ONLY - Shows only below 450px
+      <div v-if="isMobile" class="max-[450px]:block min-[451px]:hidden">
+        <div class="border rounded-lg p-3 bg-white">
+          <h3 class="text-base font-medium mb-3">Live Preview</h3>
 
           <div
-            class="border rounded-lg bg-gray-50 p-4 h-[500px] min-[451px]:h-[650px] relative overflow-hidden shadow-inner"
+            class="border rounded-lg bg-gray-50 p-3 h-[520px] relative overflow-hidden shadow-inner"
           >
-            <div class="bg-white rounded p-4 mb-4 shadow-sm border border-gray-100 max-w-[200px]">
-              <p class="text-sm">Welcome to your chat</p>
+            <div
+              class="bg-white rounded p-3 mb-3 shadow-sm border border-gray-100 w-[65%] max-w-[160px]"
+            >
+              <p class="text-xs">Welcome to your chat</p>
             </div>
 
             <div
-              class="absolute transition-all duration-300"
-              :class="positionClasses[customization.position]"
+              class="absolute transition-all duration-300 z-10"
+              :class="[
+                customization.position.includes('right') ? 'right-3' : 'left-3',
+                customization.position.includes('bottom') ? 'bottom-3' : 'top-3',
+              ]"
             >
+
               <div
                 class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105 flex items-center justify-center"
                 :style="{
-                  width: customization.bubblesize + 'px',
-                  height: customization.bubblesize + 'px',
+                  width: `${Math.min(customization.bubblesize, 60)}px`,
+                  height: `${Math.min(customization.bubblesize, 60)}px`,
                   backgroundColor: customization.primarycolor,
                 }"
               >
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path
                     d="M2 22V9q0-.825.588-1.413Q3.175 7 4 7h2V4q0-.825.588-1.413Q7.175 2 8 2h12q.825 0 1.413.587Q22 3.175 22 4v8q0 .825-.587 1.412Q20.825 14 20 14h-2v3q0 .825-.587 1.413Q16.825 19 16 19H5Zm6-10h8V9H8Zm-4 5h12v-3H8q-.825 0-1.412-.588Q6 12.825 6 12V9H4Zm14-5h2V4H8v3h8q.825 0 1.413.587Q18 8.175 18 9Z"
                   />
@@ -523,49 +521,53 @@ const currentAvatarUrl = computed(() => {
 
               <div
                 v-if="showPreviewWindow"
-                class="absolute bottom-full mb-4 right-0 shadow-2xl overflow-hidden flex flex-col transition-all"
+                class="absolute shadow-2xl overflow-hidden flex flex-col transition-all"
+                :class="[
+                  customization.position.includes('right') ? 'right-0' : 'left-0',
+                  customization.position.includes('bottom') ? 'bottom-full mb-1' : 'top-full mt-1',
+                ]"
                 :style="{
-                  width: customization.popupwidth + 'px',
-                  height: customization.bubblewidth + 'px',
+                  width: 'calc(100vw - 3rem)',
+                  height: '45vh',
                   backgroundColor: 'white',
-                  borderRadius: customization.borderraduis + 'px',
+                  borderRadius: `${Math.min(customization.borderraduis, 16)}px`,
                   border: `1px solid ${customization.secondarycolor}20`,
                 }"
               >
                 <div
-                  class="p-4"
+                  class="p-2"
                   :style="{ backgroundColor: customization.primarycolor, color: 'white' }"
                 >
-                  <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-2">
                     <div
                       v-if="customization.showavartar"
-                      class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border border-white/20"
+                      class="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden border border-white/20"
                       :style="{ backgroundColor: customization.secondarycolor }"
                     >
                       <img
                         :src="currentAvatarUrl"
-                        class="w-8 h-8 rounded-full object-cover"
+                        class="w-4 h-4 rounded-full object-cover"
                         alt="Bot"
                       />
                     </div>
-                    <div>
-                      <div class="font-semibold text-sm">ChatBot</div>
-                      <div class="text-xs opacity-90">Online • Ready to help</div>
+                    <div class="min-w-0 flex-1">
+                      <div class="font-semibold text-xs truncate">ChatBot</div>
+                      <div class="text-xs opacity-90 truncate">Online • Ready to help</div>
                     </div>
                   </div>
                 </div>
 
-                <div class="p-4 flex-1 overflow-y-auto bg-white space-y-3">
-                  <div class="flex gap-2">
+                <div class="p-2 flex-1 overflow-y-auto bg-white space-y-2">
+                  <div class="flex gap-1">
                     <div
                       v-if="customization.showavartar"
-                      class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                      class="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
                       :style="{ backgroundColor: customization.primarycolor }"
                     >
-                      <img :src="currentAvatarUrl" class="w-5 h-5 rounded-full object-cover" />
+                      <img :src="currentAvatarUrl" class="w-3 h-3 rounded-full object-cover" />
                     </div>
                     <div
-                      class="rounded-2xl px-3 py-2 max-w-[80%] text-sm"
+                      class="rounded-2xl px-2 py-1.5 max-w-[80%] text-xs"
                       :style="{
                         backgroundColor: customization.secondarycolor + '15',
                         color: '#333',
@@ -574,34 +576,34 @@ const currentAvatarUrl = computed(() => {
                       Hello! How can I help you today?
                     </div>
                   </div>
-                  <div class="flex gap-2 justify-end text-sm">
+                  <div class="flex gap-1 justify-end">
                     <div
-                      class="rounded-2xl px-3 py-2 max-w-[80%] text-white"
+                      class="rounded-2xl px-2 py-1.5 max-w-[80%] text-white text-xs"
                       :style="{ backgroundColor: customization.primarycolor }"
                     >
                       I need help with my order
                     </div>
                     <div
                       v-if="customization.showavartar"
-                      class="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold"
+                      class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                     >
                       U
                     </div>
                   </div>
                 </div>
 
-                <div class="p-3 border-t bg-white">
-                  <div class="flex gap-2">
+                <div class="p-2 border-t bg-white">
+                  <div class="flex gap-1">
                     <div
-                      class="flex-1 h-9 rounded-full border border-gray-200 px-3 flex items-center text-xs text-gray-400"
+                      class="flex-1 h-7 rounded-full border border-gray-200 px-2 flex items-center text-xs text-gray-400"
                     >
                       Type message...
                     </div>
                     <div
-                      class="w-9 h-9 rounded-full flex items-center justify-center text-white"
+                      class="w-7 h-7 rounded-full flex items-center justify-center text-white flex-shrink-0"
                       :style="{ backgroundColor: customization.primarycolor }"
                     >
-                      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
                       </svg>
                     </div>
@@ -610,15 +612,305 @@ const currentAvatarUrl = computed(() => {
               </div>
             </div>
 
-            <div class="absolute bottom-4 left-4">
+            <div class="absolute bottom-2 left-2 z-20">
               <button
                 @click="showPreviewWindow = !showPreviewWindow"
-                class="px-4 py-2 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 text-xs font-semibold"
+                class="px-2 py-1 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 text-xs font-semibold whitespace-nowrap"
               >
-                {{ showPreviewWindow ? 'Hide Chat Window' : 'Show Chat Window' }}
+                {{ showPreviewWindow ? 'Hide' : 'Show' }} Chat
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div v-else class="w-full min-[451px]:block max-[450px]:hidden lg:w-3/5">
+        <div class="border rounded-lg p-4 bg-white">
+          <h3 class="text-lg font-medium mb-4">Live Preview</h3>
+
+          <div
+            class="border rounded-lg bg-gray-50 p-4 h-[700px] md:h-[650px] lg:h-[650px] relative overflow-hidden shadow-inner"
+          >
+            <div class="bg-white rounded p-4 mb-4 shadow-sm border border-gray-100 max-w-[250px]">
+              <p class="text-sm">Welcome to your chat</p>
+            </div>
+
+            <div
+              class="absolute transition-all duration-300 z-10"
+              :class="positionClasses[customization.position]"
+            >
+
+              <div
+                class="rounded-full cursor-pointer shadow-lg transition-transform hover:scale-105 flex items-center justify-center"
+                :style="{
+                  width: `clamp(48px, ${customization.bubblesize}px, 96px)`,
+                  height: `clamp(48px, ${customization.bubblesize}px, 96px)`,
+                  backgroundColor: customization.primarycolor,
+                }"
+              >
+                <svg
+                  class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M2 22V9q0-.825.588-1.413Q3.175 7 4 7h2V4q0-.825.588-1.413Q7.175 2 8 2h12q.825 0 1.413.587Q22 3.175 22 4v8q0 .825-.587 1.412Q20.825 14 20 14h-2v3q0 .825-.587 1.413Q16.825 19 16 19H5Zm6-10h8V9H8Zm-4 5h12v-3H8q-.825 0-1.412-.588Q6 12.825 6 12V9H4Zm14-5h2V4H8v3h8q.825 0 1.413.587Q18 8.175 18 9Z"
+                  />
+                </svg>
+              </div>
+
+              <div
+                v-if="showPreviewWindow"
+                class="absolute shadow-2xl overflow-hidden flex flex-col transition-all"
+                :class="[
+                  customization.position.includes('right') ? 'right-0' : 'left-0',
+                  customization.position.includes('bottom') ? 'bottom-full mb-2' : 'top-full mt-2',
+                ]"
+                :style="{
+                  width: isMobile ? '85vw' : `${Math.min(customization.popupwidth, 400)}px`,
+                  height: isMobile ? '60vh' : `${Math.min(customization.bubblewidth, 500)}px`,
+                  maxWidth: '450px',
+                  maxHeight: '650px',
+                  backgroundColor: 'white',
+                  borderRadius: `${Math.min(customization.borderraduis, 24)}px`,
+                  border: `1px solid ${customization.secondarycolor}20`,
+                }"
+              >
+
+                <div
+                  class="p-3 sm:p-4"
+                  :style="{ backgroundColor: customization.primarycolor, color: 'white' }"
+                >
+                  <div class="flex items-center gap-2 sm:gap-3">
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center overflow-hidden border border-white/20"
+                      :style="{ backgroundColor: customization.secondarycolor }"
+                    >
+                      <img
+                        :src="currentAvatarUrl"
+                        class="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover"
+                        alt="Bot"
+                      />
+                    </div>
+                    <div>
+                      <div class="font-semibold text-xs sm:text-sm">ChatBot</div>
+                      <div class="text-xs opacity-90">Online • Ready to help</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="p-3 sm:p-4 flex-1 overflow-y-auto bg-white space-y-3">
+                  <div class="flex gap-2">
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      <img
+                        :src="currentAvatarUrl"
+                        class="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover"
+                      />
+                    </div>
+                    <div
+                      class="rounded-2xl px-3 py-2 max-w-[85%] text-xs sm:text-sm"
+                      :style="{
+                        backgroundColor: customization.secondarycolor + '15',
+                        color: '#333',
+                      }"
+                    >
+                      Hello! How can I help you today?
+                    </div>
+                  </div>
+                  <div class="flex gap-2 justify-end">
+                    <div
+                      class="rounded-2xl px-3 py-2 max-w-[85%] text-white text-xs sm:text-sm"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      I need help with my order
+                    </div>
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                    >
+                      U
+                    </div>
+                  </div>
+                </div>
+
+                <div class="p-2 sm:p-3 border-t bg-white">
+                  <div class="flex gap-2">
+                    <div
+                      class="flex-1 h-8 sm:h-9 rounded-full border border-gray-200 px-3 flex items-center text-xs text-gray-400"
+                    >
+                      Type message...
+                    </div>
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 z-20">
+              <button
+                @click="showPreviewWindow = !showPreviewWindow"
+                class="px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 text-xs font-semibold whitespace-nowrap"
+              >
+                {{ showPreviewWindow ? 'Hide' : 'Show' }} Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      </div> -->
+
+      <div class="w-full lg:w-3/5">
+        <div class="border rounded-lg p-3 sm:p-4 bg-white shadow-sm">
+          <h3 class="text-md font-semibold mb-4 text-gray-700 flex items-center gap-2">
+            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Live Preview
+          </h3>
+
+          <div
+            class="border-2 border-gray-100 rounded-xl bg-slate-50 h-[500px] xs:h-[600px] md:h-[650px] relative overflow-hidden shadow-inner"
+          >
+            <div class="p-4 opacity-40 select-none">
+              <div class="h-4 w-3/4 bg-gray-200 rounded mb-2"></div>
+              <div class="h-4 w-1/2 bg-gray-200 rounded mb-6"></div>
+              <div class="bg-white rounded-lg p-3 border border-gray-100 max-w-[180px]">
+                <p class="text-[10px] text-gray-400">Welcome to your chat</p>
+              </div>
+            </div>
+
+            <div
+              class="absolute inset-0 p-3 flex flex-col pointer-events-none"
+              :class="[
+                customization.position.includes('right') ? 'items-end' : 'items-start',
+                customization.position.includes('bottom') ? 'justify-end' : 'justify-start',
+              ]"
+            >
+              <div
+                v-if="showPreviewWindow"
+                class="pointer-events-auto shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ease-out mb-3 w-full"
+                :style="{
+                  width: isMobile
+                    ? 'calc(100% - 10px)'
+                    : `${Math.min(customization.popupwidth, 400)}px`,
+                  height: isMobile ? '70%' : `${Math.min(customization.bubblewidth, 500)}px`,
+                  maxHeight: '80%',
+                  backgroundColor: 'white',
+                  borderRadius: `${Math.min(customization.borderraduis, 24)}px`,
+                  border: `1px solid ${customization.secondarycolor}20`,
+                }"
+              >
+                <div
+                  class="p-3 sm:p-4"
+                  :style="{ backgroundColor: customization.primarycolor, color: 'white' }"
+                >
+                  <div class="flex items-center gap-2 sm:gap-3">
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center overflow-hidden border border-white/20"
+                      :style="{ backgroundColor: customization.secondarycolor }"
+                    >
+                      <img :src="currentAvatarUrl" class="w-full h-full object-cover" alt="Bot" />
+                    </div>
+                    <div class="leading-tight">
+                      <div class="font-bold text-xs sm:text-sm">ChatBot</div>
+                      <div class="text-[10px] opacity-90">Online • Ready to help</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="p-3 sm:p-4 flex-1 overflow-y-auto bg-white space-y-4">
+                  <div class="flex gap-2">
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      <img
+                        :src="currentAvatarUrl"
+                        class="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover"
+                      />
+                    </div>
+                    <div
+                      class="rounded-2xl px-3 py-2 max-w-[85%] text-[11px] sm:text-xs"
+                      :style="{
+                        backgroundColor: customization.secondarycolor + '15',
+                        color: '#333',
+                        borderTopLeftRadius: '2px',
+                      }"
+                    >
+                      Hello! How can I help you today?
+                    </div>
+                  </div>
+
+                  <div class="flex gap-2 justify-end">
+                    <div
+                      class="rounded-2xl px-3 py-2 max-w-[85%] text-white text-[11px] sm:text-xs"
+                      :style="{
+                        backgroundColor: customization.primarycolor,
+                        borderTopRightRadius: '2px',
+                      }"
+                    >
+                      I need help with my order
+                    </div>
+                    <div
+                      v-if="customization.showavartar"
+                      class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold flex-shrink-0 text-gray-600"
+                    >
+                      U
+                    </div>
+                  </div>
+                </div>
+
+                <div class="p-2 sm:p-3 border-t bg-white">
+                  <div class="flex gap-2">
+                    <div
+                      class="flex-1 h-8 sm:h-9 rounded-full border border-gray-200 px-3 flex items-center text-[10px] sm:text-xs text-gray-400"
+                    >
+                      Type message...
+                    </div>
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                      :style="{ backgroundColor: customization.primarycolor }"
+                    >
+                      <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="pointer-events-auto rounded-full cursor-pointer shadow-lg transition-transform hover:scale-110 flex items-center justify-center shrink-0"
+                @click="showPreviewWindow = !showPreviewWindow"
+                :style="{
+                  width: isMobile ? '50px' : `clamp(48px, ${customization.bubblesize}px, 96px)`,
+                  height: isMobile ? '50px' : `clamp(48px, ${customization.bubblesize}px, 96px)`,
+                  backgroundColor: customization.primarycolor,
+                }"
+              >
+                <svg class="w-1/2 h-1/2 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path
+                    d="M2 22V9q0-.825.588-1.413Q3.175 7 4 7h2V4q0-.825.588-1.413Q7.175 2 8 2h12q.825 0 1.413.587Q22 3.175 22 4v8q0 .825-.587 1.412Q20.825 14 20 14h-2v3q0 .825-.587 1.413Q16.825 19 16 19H5Zm6-10h8V9H8Zm-4 5h12v-3H8q-.825 0-1.412-.588Q6 12.825 6 12V9H4Zm14-5h2V4H8v3h8q.825 0 1.413.587Q18 8.175 18 9Z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-2 text-[11px] text-gray-400 text-center">
+            Interactive preview: Adjust settings to see changes live.
+          </p>
         </div>
       </div>
     </div>
@@ -626,7 +918,6 @@ const currentAvatarUrl = computed(() => {
 </template>
 
 <style scoped>
-/* Range input styling for a cleaner look */
 input[type='range'] {
   -webkit-appearance: none;
   height: 6px;
@@ -639,7 +930,7 @@ input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  background: #0d9488; /* teal-600 */
+  background: #0d9488;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid white;

@@ -43,13 +43,13 @@ onBeforeUnmount(() => {
             <div class="bg-white rounded-full p-2 shadow-md">
               <img src="/LogoHead.ico" alt="logo" class="w-6 h-6" />
             </div>
-            <h2 class="text-2xl font-semibold tracking-wide text-white">Hub</h2>
+            <h2 class="text-2xl font-semibold tracking-wide text-white">Chat</h2>
           </div>
         </div>
         <div class="flex flex-col items-start justify-end w-[85%] pb-10">
-          <h2 class="text-[32px] font-bold leading-tight">NexDre Admin Dashboard</h2>
+          <h2 class="text-[32px] font-bold leading-tight">Botconvo Admin Dashboard</h2>
           <p class="mt-4 text-[15px] leading-relaxed opacity-90">
-            Oversee how NexDre interacts with users, manage chatbot data, and optimize its
+            Oversee how Botconvo interacts with users, manage chatbot data, and optimize its
             intelligence — all in one dashboard.
           </p>
           <div class="flex gap-2 mt-8">

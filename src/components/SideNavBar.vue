@@ -70,6 +70,25 @@ const navItems = [
         <Profile class="flex-shrink-0 w-6 h-6" />
         <span v-show="expanded" class="sidebar-text ml-3">Profile</span>
       </RouterLink>
+
+      <a
+        href="https://www.gesoftech.com/"
+        target="_blank"
+        class="dashBgNav flex items-center mt-4 group relative"
+      >
+        <!-- <ExternalLink class="flex-shrink-0 w-5 h-5 text-gray-300" /> -->
+
+        <span v-show="expanded" class="sidebar-text ml-3 text-xs">
+          Creation © Golden Edge Softech
+        </span>
+
+        <span
+          v-if="!expanded"
+          class="absolute left-full ml-2 px-2 py-1 text-xs bg-white text-white rounded opacity-0 group-hover:opacity-100 transition"
+        >
+          Golden Edge Softech
+        </span>
+      </a>
     </div>
   </aside>
 

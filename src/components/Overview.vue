@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue' // computed, Auto-calculated value
 import axios from 'axios'
 import { Chart, registerables } from 'chart.js'
 import Illustration from './Icons/Illustration.vue'
@@ -22,13 +22,15 @@ Chart.register(...registerables)
 const adminStore = useAdminStore()
 const allChats = ref({})
 const allMessages = ref([])
-const userChartRef = ref(null)
+const userChartRefMobile = ref(null)
+const userChartRefDesktop = ref(null)
 const messageChartRef = ref(null)
 const selectedWebsite = ref(null)
 const selectedRequest = ref(null)
 const smallChartRef = ref(null)
 const loading = ref(false)
-let userChart = null
+let userChartMobile = null
+let userChartDesktop = null
 let messageChart = null
 
 // console.log(adminStore.userInfo.userId)
@@ -95,6 +97,7 @@ const getMessages = async (sessionId) => {
   }
 }
 
+// Whenever the selected chat changes, fetch its messages
 watch(selectedRequest, (newVal) => {
   if (newVal) {
     getMessages(newVal.session_id)
@@ -105,9 +108,9 @@ const renderUserChart = () => {
   const totalUsers = allChats.value.length
   const totalMessages = totalMessageCount.value
 
-  if (userChart) userChart.destroy()
+  // if (userChart) userChart.destroy()
 
-  userChart = new Chart(userChartRef.value, {
+  const chartConfig = {
     type: 'doughnut',
     data: {
       labels: ['Users', 'Message'],
@@ -128,7 +131,17 @@ const renderUserChart = () => {
         tooltip: { enabled: true },
       },
     },
-  })
+  }
+
+  if (userChartRefMobile.value) {
+    if (userChartMobile) userChartMobile.destroy()
+    userChartMobile = new Chart(userChartRefMobile.value, chartConfig)
+  }
+
+  if (userChartRefDesktop.value) {
+    if (userChartDesktop) userChartDesktop.destroy()
+    userChartDesktop = new Chart(userChartRefDesktop.value, chartConfig)
+  }
 }
 // watch(
 //   [allChats, () => totalMessageCount], // watch chats and message count
@@ -182,19 +195,150 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+  <!-- MOBILE VIEW -->
+  <main class="block md:hidden p-4">
+    <div class="flex flex-col gap-4">
+      <!-- Filter -->
+      <div class="w-full">
+        <Filter v-model:website="selectedWebsite" />
+      </div>
+
+      <!-- Welcome Card -->
+      <div class="bg-white shadow-sm rounded-lg p-4">
+        <div class="flex flex-col gap-3 text-center">
+          <h2 class="text-lg text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Your platform is running smoothly today.<br />
+            Check key stats to stay on top of performance.
+          </p>
+          <div class="flex justify-center mt-2">
+            <div class="max-w-[140px]">
+              <Illustration />
+            </div>
+          </div>
+          <RouterLink
+            :to="{ name: 'chatreview' }"
+            class="w-full px-4 py-2 bg-mainColor text-white rounded-lg shadow-sm hover:bg-teal-700 transition text-center"
+          >
+            View Chat
+          </RouterLink>
+        </div>
+      </div>
+
+      <!-- Total Users Card -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div v-if="loading" class="flex justify-center items-center h-[120px]">
+          <div
+            class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+          ></div>
+        </div>
+
+        <div v-else-if="Object.keys(allChats).length" class="animate-fadeUp">
+          <div class="relative">
+            <div
+              class="absolute top-0 right-0 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+            >
+              <UserIcon />
+            </div>
+            <p class="text-gray-500 text-sm mb-1">Total Users</p>
+            <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
+            <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+          </div>
+        </div>
+
+        <div v-else>
+          <NoUserFound />
+        </div>
+      </div>
+
+      <!-- Total Messages Card -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div v-if="loading" class="flex justify-center items-center h-[120px]">
+          <div
+            class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+          ></div>
+        </div>
+
+        <div v-else-if="Object.values(allMessages).flat().length" class="animate-fadeUp">
+          <div class="relative">
+            <div
+              class="absolute top-0 right-0 w-8 h-8 bg-blue-50 text-blue-500 flex items-center justify-center rounded-lg"
+            >
+              <Message />
+            </div>
+            <p class="text-gray-500 text-sm mb-1">Total Messages</p>
+            <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">{{ totalMessageCount }}</h2>
+            <p class="text-xs text-gray-400 mt-2">Across all sources</p>
+          </div>
+        </div>
+
+        <div v-else>
+          <NoMessageFound />
+        </div>
+      </div>
+
+      <!-- User Activity Chart -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-base font-semibold text-gray-800">User Activity</h2>
+          <button
+            @click="getAllUser"
+            class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
+          >
+            Refresh
+          </button>
+        </div>
+        <div class="flex justify-center items-center">
+          <canvas ref="userChartRefMobile" class="max-w-[200px]"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Conversations -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <div v-if="loading" class="flex justify-center items-center h-40">
+          <div
+            class="loader w-[40px] p-2 aspect-square rounded-full bg-mainColor animate-spin-smooth"
+          ></div>
+        </div>
+
+        <div v-else-if="allMessages">
+          <h2 class="text-base font-semibold text-gray-800 mb-4">Recent Conversations</h2>
+          <div class="space-y-4 max-h-[260px] overflow-y-auto">
+            <div
+              v-for="(recent, index) in allMessages.slice(0, 3)"
+              :key="index"
+              class="border-b border-gray-100 pb-3 last:border-0"
+            >
+              <div class="flex justify-between items-center">
+                <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
+                <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
+              </div>
+              <p class="text-sm text-mainColor truncate mt-1">{{ recent.message }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-else>
+          <EmptyNoMessage />
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- DESKTOP/TABLET VIEW -->
+  <main class="hidden md:flex flex-1 overflow-y-auto p-6 flex-col gap-6">
     <div class="flex flex-col lg:flex-row gap-6 w-full">
       <div
         class="w-full mx-auto flex flex-col min-[1024px]:flex-row items-center bg-white shadow-sm rounded-lg p-6 gap-6"
       >
         <div class="flex flex-col flex-1 gap-3 text-center min-[1024px]:text-left">
           <h2 class="text-xl text-mainColor font-semibold">Welcome Back, {{ firstName }} 🎉</h2>
-
           <p class="text-sm text-gray-600 leading-relaxed">
             Your platform is running smoothly today.<br />
             Check key stats to stay on top of performance.
           </p>
-
           <div class="flex justify-center min-[1024px]:justify-start">
             <RouterLink
               :to="{ name: 'chatreview' }"
@@ -229,14 +373,9 @@ onMounted(() => {
               >
                 <UserIcon />
               </div>
-
               <p class="text-gray-500 text-sm mb-1">Total Users</p>
               <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{ Object.keys(allChats).length }}
-              </h2>
-
+              <h2 class="text-2xl font-bold text-gray-800">{{ Object.keys(allChats).length }}</h2>
               <p class="text-xs text-gray-400 mt-2">Across all sources</p>
             </div>
           </div>
@@ -262,14 +401,9 @@ onMounted(() => {
               >
                 <Message />
               </div>
-
               <p class="text-gray-500 text-sm mb-1">Total Messages</p>
               <div class="mt-3 h-[1px] bg-gray-100 w-full"></div>
-
-              <h2 class="text-2xl font-bold text-gray-800">
-                {{ totalMessageCount }}
-              </h2>
-
+              <h2 class="text-2xl font-bold text-gray-800">{{ totalMessageCount }}</h2>
               <p class="text-xs text-gray-400 mt-2">Across all sources</p>
             </div>
           </div>
@@ -294,7 +428,6 @@ onMounted(() => {
         >
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold text-gray-800">User Activity</h2>
-
             <button
               @click="getAllUser"
               class="text-sm bg-mainColor text-white px-3 py-1 rounded-lg hover:bg-teal-700 transition"
@@ -302,13 +435,11 @@ onMounted(() => {
               Refresh
             </button>
           </div>
-
           <div class="flex justify-center items-center h-[250px]">
-            <canvas ref="userChartRef" class="max-w-[250px]"></canvas>
+            <canvas ref="userChartRefDesktop" class="max-w-[250px]"></canvas>
           </div>
         </div>
 
-        <!-- RECENT CONVERSATIONS -->
         <div
           class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition"
         >
@@ -318,9 +449,8 @@ onMounted(() => {
             ></div>
           </div>
 
-          <div v-else-if="allMessages">
+          <div v-else-if="allMessages && allMessages.length > 0">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Recent Conversations</h2>
-
             <div class="space-y-4 max-h-[260px] overflow-y-auto">
               <div
                 v-for="(recent, index) in allMessages.slice(0, 3)"
@@ -329,13 +459,9 @@ onMounted(() => {
               >
                 <div class="flex justify-between items-center">
                   <h3 class="font-medium text-gray-700">User: {{ recent.id }}</h3>
-
-                  <span class="text-xs text-gray-400"> {{ recent.message.length }} msgs </span>
+                  <span class="text-xs text-gray-400">{{ recent.message.length }} msgs</span>
                 </div>
-
-                <p class="text-sm text-mainColor truncate mt-1">
-                  {{ recent.message }}
-                </p>
+                <p class="text-sm text-mainColor truncate mt-1">{{ recent.message }}</p>
               </div>
             </div>
           </div>

@@ -4,7 +4,8 @@ import * as Ably from 'ably'
 const ablyService = ref(null)
 const isConnected = ref(false)
 
-const ABLY_AUTH_URL = 'https://assitance.storehive.com.ng/public/api/ably/auth'
+// const ABLY_AUTH_URL = 'https://assitance.storehive.com.ng/public/api/ably/auth'
+const ABLY_AUTH_URL = 'https://assistance.botconvo.com/api/ably/auth'
 
 export function useAbly() {
   const typingTimeouts = new Map()
@@ -45,16 +46,16 @@ export function useAbly() {
       })
 
       ably.connection.on('connected', () => {
-        // console.log('✅ Ably CONNECTED (Admin)')
+        console.log('✅ Ably CONNECTED (Admin)')
         isConnected.value = true
       })
 
       ably.connection.on('connecting', () => {
-        // console.log('🔄 Ably connecting...')
+        console.log('🔄 Ably connecting...')
       })
 
       ably.connection.on('disconnected', () => {
-        // console.log('⚠️ Ably disconnected')
+        console.log('⚠️ Ably disconnected')
         isConnected.value = false
       })
 

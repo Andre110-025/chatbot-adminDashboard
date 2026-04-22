@@ -10,9 +10,10 @@ import Filter from './Filter.vue'
 import Search from './Icons/Search.vue'
 import DOMPurify from 'dompurify'
 import Bin from './Icons/Bin.vue'
+import ArrowLeft from './Icons/ArrowLeft.vue'
+import ArrowDown from './Icons/ArrowDown.vue'
 import ConfirmDelete from './ConfirmDelete.vue'
 
-// optional: create a reusable function
 const sanitized = (html) => DOMPurify.sanitize(html)
 
 const adminStore = useAdminStore()
@@ -20,8 +21,11 @@ const loading = ref(false)
 const allRequests = ref([])
 const selectedProductId = ref(null)
 const selectedWebsite = ref(null)
-// const selectedRequest = ref(null)
 const deleteWebsite = ref(null)
+
+// Mobile-specific state
+const showMobileDetails = ref(false)
+const showMobileDropdown = ref(false)
 
 const getAllRequests = async (productId) => {
   if (!productId) return
@@ -31,7 +35,6 @@ const getAllRequests = async (productId) => {
     allRequests.value = response.data.data || []
     console.log(response)
 
-    // auto-select the first request if available
     if (allRequests.value.length > 0) {
       selectedRequest.value = allRequests.value[0]
     } else {
@@ -45,12 +48,11 @@ const getAllRequests = async (productId) => {
   }
 }
 
-// this line right here, wait for child, grabs id, make the api call
 watch(selectedProductId, (newId) => {
   getAllRequests(newId)
-
   deleteWebsite.value = selectedWebsite.value
 })
+
 onMounted(() => {
   if (selectedProductId.value) {
     getAllRequests(selectedProductId.value)
@@ -58,16 +60,21 @@ onMounted(() => {
 })
 
 const selectedRequest = ref(null)
+
 const selectRequest = (request) => {
   selectedRequest.value = request
 }
 
-// const selectRequest = (request) => {
-//   selectedRequest.value = null // clear previous content first
-//   nextTick(() => {
-//     selectedRequest.value = request
-//   })
-// }
+// Mobile-specific functions
+const showRequestDetails = (request) => {
+  selectedRequest.value = request
+  showMobileDetails.value = true
+  showMobileDropdown.value = false
+}
+
+const hideMobileDetails = () => {
+  showMobileDetails.value = false
+}
 
 function openPopup() {
   if (!selectedProductId.value) {
@@ -115,6 +122,11 @@ function deleteConversation(requestId) {
       id: requestId,
       onConfirm() {
         close()
+        getAllRequests(selectedProductId.value)
+        if (selectedRequest.value?.id === requestId) {
+          selectedRequest.value = null
+          showMobileDetails.value = false
+        }
       },
     },
   })
@@ -122,31 +134,123 @@ function deleteConversation(requestId) {
   open()
 }
 
-// const deleteConversation = async (website) => {
-//   if (!website) {
-//     toast.warning('Cannot delete')
-//     return
-//   }
-
-//   try {
-//     await axios.delete('/deleteknowledgebase', {
-//       website: website,
-//     })
-
-//     toast.success('Message deleted!')
-//   } catch (err) {
-//     console.error(err)
-//     toast.error('Failed to delete message.')
-//   }
-// }
-
-// watch(selectedWebsite, (newWebsite) => {
-//   // deleteConversation(newWebsite)
-// })
+const displayList = computed(() => {
+  return suggestions.value.length ? suggestions.value : allRequests.value
+})
 </script>
 
 <template>
-  <div class="flex flex-col md:flex-row h-auto md:h-[570px] gap-4">
+  <div class="block md:hidden p-4">
+    <!-- List View -->
+    <div v-show="!showMobileDetails || !selectedRequest" class="flex flex-col gap-4">
+      <!-- Filter at top -->
+      <Filter v-model:selected="selectedProductId" v-model:website="selectedWebsite" />
+
+      <div v-if="loading" class="flex justify-center items-center h-40">
+        <div
+          class="loader w-[40px] p-[3px] aspect-square rounded-full bg-mainColor animate-spin-smooth"
+        ></div>
+      </div>
+
+      <div v-else class="animate-fadeUp flex flex-col gap-4">
+        <!-- Add Info Button -->
+        <button
+          @click="openPopup()"
+          class="w-full flex items-center justify-center gap-2 bg-mainColor text-white px-4 py-3 rounded-lg hover:bg-teal-700 transition shadow"
+        >
+          <Plus class="w-5 h-5" />
+          Add Info
+        </button>
+
+        <!-- Search Bar -->
+        <div class="relative w-full">
+          <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+            <Search class="w-5 h-5 text-gray-400" />
+          </span>
+          <input
+            v-model="search"
+            type="search"
+            placeholder="Search knowledge base..."
+            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-mainColor focus:border-mainColor"
+          />
+        </div>
+
+        <!-- Knowledge Items List -->
+        <ul v-if="displayList.length" class="space-y-2">
+          <li
+            v-for="res in displayList"
+            :key="res.id"
+            @click="showRequestDetails(res)"
+            class="bg-white border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:bg-teal-50 transition-colors flex items-center justify-between gap-2"
+          >
+            <span class="text-gray-700 truncate flex-1">{{ res.title }}</span>
+            <button
+              @click.stop="deleteConversation(res.id)"
+              class="text-red-500 hover:text-red-700 transition flex-shrink-0"
+              title="Delete Knowledge"
+            >
+              <Bin class="w-4 h-4" />
+            </button>
+          </li>
+        </ul>
+
+        <div v-else class="px-4 py-8 text-center text-gray-400">
+          <p>No knowledge items found</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Details View - THIS WAS MISSING! -->
+    <div v-if="showMobileDetails && selectedRequest" class="flex flex-col gap-4 animate-fadeUp">
+      <!-- Back Button -->
+      <button
+        @click="hideMobileDetails"
+        class="flex items-center gap-2 text-mainColor hover:text-teal-700 transition"
+      >
+        <ArrowLeft class="w-5 h-5" />
+        <span class="font-medium">Back to list</span>
+      </button>
+
+      <!-- Details Card -->
+      <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <div class="flex flex-col gap-4">
+          <!-- Header with title and category -->
+          <div class="flex flex-col gap-2">
+            <h3 class="text-xl font-semibold text-gray-800">{{ selectedRequest?.title }}</h3>
+            <span
+              class="text-sm font-medium bg-teal-100 text-teal-700 px-3 py-1 rounded-full border border-teal-200 shadow-sm self-start"
+            >
+              {{ selectedRequest?.category || 'General Content' }}
+            </span>
+          </div>
+
+          <!-- Divider -->
+          <div class="border-t border-gray-200"></div>
+
+          <!-- Content -->
+          <div>
+            <h4 class="text-lg font-semibold text-gray-800 mb-3">Content</h4>
+            <div
+              class="prose prose-sm max-w-none overflow-y-auto max-h-96"
+              v-html="sanitized(selectedRequest?.content || '')"
+            ></div>
+          </div>
+
+          <!-- Delete Button -->
+          <button
+            @click="deleteConversation(selectedRequest?.id)"
+            class="w-full flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-3 rounded-lg hover:bg-red-600 transition shadow mt-4"
+          >
+            <Bin class="w-5 h-5" />
+            Delete Knowledge
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop/Tablet View -->
+  <div class="hidden md:flex flex-col md:flex-row h-auto md:h-[570px] gap-4">
     <nav
       class="w-full md:w-[270px] bg-white shadow rounded-lg md:ml-1 overflow-y-auto p-5 flex flex-col"
     >
@@ -172,7 +276,7 @@ function deleteConversation(requestId) {
         </h3>
         <ul class="space-y-2">
           <li
-            v-for="(res, index) in suggestions.length ? suggestions : allRequests"
+            v-for="res in displayList"
             :key="res.id"
             class="cursor-pointer"
             @click="selectRequest(res)"
@@ -189,7 +293,7 @@ function deleteConversation(requestId) {
               <button
                 class="flex items-end"
                 @click.stop="deleteConversation(res.id)"
-                title="Delete Knownledge"
+                title="Delete Knowledge"
               >
                 <Bin class="text-red-500" />
               </button>
@@ -204,7 +308,6 @@ function deleteConversation(requestId) {
         <h3 class="text-xl font-semibold text-gray-800">Information Details</h3>
 
         <div class="flex flex-wrap gap-3">
-          <!-- so this guy loads first, because it's a child component -->
           <Filter v-model:selected="selectedProductId" v-model:website="selectedWebsite" />
 
           <button
@@ -272,7 +375,7 @@ function deleteConversation(requestId) {
   }
 }
 
-/* Beautiful custom scrollbar – works in Chrome/Edge/Safari */
+/* Beautiful custom scrollbar */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #9ca3af #f3f4f6;
